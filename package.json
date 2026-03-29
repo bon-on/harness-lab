@@ -1,0 +1,25 @@
+{
+  "name": "harness-lab",
+  "version": "0.1.0",
+  "description": "CLI playground for prompt and harness engineering experiments",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts examples/coding-assistant.json",
+    "start": "node dist/index.js examples/coding-assistant.json"
+  },
+  "keywords": [
+    "prompt-engineering",
+    "harness-engineering",
+    "evals",
+    "cli",
+    "typescript"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

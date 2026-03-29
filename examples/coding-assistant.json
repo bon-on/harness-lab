@@ -1,0 +1,75 @@
+{
+  "name": "Coding Assistant Harness Comparison",
+  "description": "Compare prompt harness variants for code-review style assistant behavior.",
+  "variants": [
+    {
+      "id": "baseline",
+      "system": "You are a helpful coding assistant.",
+      "userTemplate": "Review this API handler and give feedback: {{snippet}}"
+    },
+    {
+      "id": "structured-reviewer",
+      "system": "You are a senior backend reviewer. Be concise, concrete, and skeptical.",
+      "developer": "Always structure feedback as: risks, missing tests, suggested fix. Mention production impact when relevant.",
+      "userTemplate": "Review this API handler and give feedback: {{snippet}}"
+    },
+    {
+      "id": "decision-oriented",
+      "system": "You are a pragmatic staff engineer.",
+      "developer": "Do not just explain. Prioritize findings by severity. Call out concurrency, validation, and observability issues.",
+      "userTemplate": "Review this API handler and give feedback: {{snippet}}"
+    }
+  ],
+  "cases": [
+    {
+      "id": "missing-validation",
+      "variables": {
+        "snippet": "app.post('/user', async (req, res) => { await db.insert(req.body); res.send('ok'); })"
+      },
+      "mockOutput": {
+        "baseline": "Looks mostly fine. Maybe add some validation.",
+        "structured-reviewer": "Risks: req.body is inserted directly without validation. Missing tests: invalid payload, empty body. Suggested fix: validate schema before insert and return 400 on bad input.",
+        "decision-oriented": "High severity: raw req.body insert enables invalid data. Missing observability around failed inserts. Add request validation, error handling, and tests for malformed payloads."
+      },
+      "checks": [
+        {
+          "type": "includesAll",
+          "values": ["validation", "tests"]
+        },
+        {
+          "type": "excludesAll",
+          "values": ["looks mostly fine"]
+        },
+        {
+          "type": "maxLength",
+          "value": 260
+        }
+      ]
+    },
+    {
+      "id": "missing-observability",
+      "variables": {
+        "snippet": "async function syncJobs() { const jobs = await fetchJobs(); await saveAll(jobs); }"
+      },
+      "mockOutput": {
+        "baseline": "Add logs.",
+        "structured-reviewer": "Risks: failures in fetchJobs or saveAll have no logging or retry path. Missing tests: upstream failure, partial save failure. Suggested fix: add logging, metrics, and retry strategy.",
+        "decision-oriented": "Medium severity: no logs, metrics, or retry strategy around sync pipeline. Add counters for fetched/saved jobs, error logs, and tests for upstream timeout and partial persistence failure."
+      },
+      "checks": [
+        {
+          "type": "includesAll",
+          "values": ["logs", "metrics"]
+        },
+        {
+          "type": "includesAll",
+          "values": ["tests"]
+        },
+        {
+          "type": "maxLength",
+          "value": 280
+        }
+      ]
+    }
+  ]
+}
