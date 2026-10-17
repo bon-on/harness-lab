@@ -16,7 +16,8 @@
     "CONTRIBUTING.md",
     "LICENSE",
     "docs",
-    ".github"
+    ".github",
+    "skills"
   ],
   "timeoutMs": 120000
 }

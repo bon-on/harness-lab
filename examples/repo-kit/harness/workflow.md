@@ -12,6 +12,10 @@ Startup sequence:
 7. Record architectural or cross-cutting changes in an ADR, including alternatives and consequences.
 8. Review `harness/maintenance.json` every 30 days and after repeated failures or stack changes. Remove duplicate guidance, check stale ADRs and unused packs, compare instruction size, and add a regression check for recurring failures. Preserve decision history. Record reviewedAt and a nonempty summary only after review and verification.
 
+Development routing:
+- For implementation requests, use the available `harness-develop` skill or follow the same core workflow: map requirements to checks, assign independent tasks with exclusive file ownership and explicit dependencies, then integrate and verify as coordinator. State why when using a single-agent fallback.
+- Use the host's available agent tools. Do not assume Git worktrees or a particular orchestration service exists.
+
 Response contract:
 - Include `References used`, `Constraints`, `Conflicts or gaps`, and `Escalation`.
 - Escalate when required harness artifacts are missing or conflicting.

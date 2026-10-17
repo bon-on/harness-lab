@@ -1268,6 +1268,18 @@ function detectProjectProfiles(repoRoot: string): DetectResult {
 
   if (packageJson) {
     addSignal(signals, { kind: 'tooling', path: relative(absoluteRoot, packageJson.path) || 'package.json', detail: 'package.json', confidence: 0.95 });
+    const engines = pkg?.engines as Record<string, unknown> | undefined;
+    const scripts = pkg?.scripts as Record<string, unknown> | undefined;
+    if (engines && typeof engines.node === 'string') {
+      addSignal(signals, { kind: 'runtime', path: 'package.json', detail: `Node.js ${engines.node}`, confidence: 0.95 });
+    }
+    if (pkg?.type === 'module') {
+      addSignal(signals, { kind: 'language', path: 'package.json', detail: 'JavaScript ESM', confidence: 0.95 });
+    }
+    if (scripts && Object.values(scripts).some(value => typeof value === 'string' && /\bnode\b[^;&|]*\s--test(?:\s|$|=)/.test(value))) {
+      addSignal(signals, { kind: 'test', path: 'package.json', detail: 'Node.js test runner', confidence: 0.95 });
+    }
+
     if (dependencyNames.has('next')) {
       addSignal(signals, { kind: 'framework', path: relative(absoluteRoot, packageJson.path) || 'package.json', detail: 'Next.js dependency', confidence: 0.98 });
       addProfile(profiles, 'nextjs-frontend');
@@ -1281,6 +1293,21 @@ function detectProjectProfiles(repoRoot: string): DetectResult {
     }
     if (dependencyNames.has('typescript')) {
       addSignal(signals, { kind: 'language', path: relative(absoluteRoot, packageJson.path) || 'package.json', detail: 'TypeScript', confidence: 0.85 });
+    }
+  }
+
+  // Signals describe observed tooling even when no curated policy pack exists.
+  for (const pythonFile of ['pyproject.toml', 'requirements.txt']) {
+    const pythonPath = join(absoluteRoot, pythonFile);
+    if (!existsSync(pythonPath)) continue;
+    const source = readTextIfExists(pythonPath).split('\n').map(line => line.replace(/#.*$/, '')).join('\n');
+    addSignal(signals, { kind: 'language', path: pythonFile, detail: 'Python', confidence: 0.9 });
+    addSignal(signals, { kind: 'tooling', path: pythonFile, detail: pythonFile, confidence: 0.95 });
+    for (const [dependency, kind, detail] of [
+      ['fastapi', 'framework', 'FastAPI'], ['pytest', 'test', 'pytest'],
+    ] as const) {
+      const pattern = new RegExp(`(?:^|[\\s"'])${dependency}(?=[\\s"'\\[<>=!~;]|$)`, 'im');
+      if (pattern.test(source)) addSignal(signals, { kind, path: pythonFile, detail, confidence: 0.85 });
     }
   }
 
@@ -1348,7 +1375,7 @@ function detectProjectProfiles(repoRoot: string): DetectResult {
   const stackSummary =
     detectedProfiles.length > 0
       ? detectedProfiles.map((profileId) => profilePacks[profileId]?.label ?? profileId).join(', ')
-      : 'No known stack profile detected';
+      : [...new Set(signals.filter(signal => ['runtime', 'language', 'framework'].includes(signal.kind)).map(signal => signal.detail))].join(', ') || 'No known stack profile detected';
 
   return {
     repoRoot: absoluteRoot,
@@ -1485,6 +1512,10 @@ Startup sequence:
 6. Map the user request to acceptance criteria and project-specific verification commands. Run checks before claiming completion; record argv, exit status and evidence. Static audit or mock scores do not prove execution.
 7. Record architectural or cross-cutting changes in an ADR, including alternatives and consequences.
 8. Review \`harness/maintenance.json\` every 30 days and after repeated failures or stack changes. Remove duplicate guidance, check stale ADRs and unused packs, compare instruction size, and add a regression check for recurring failures. Preserve decision history. Record reviewedAt and a nonempty summary only after review and verification.
+
+Development routing:
+- For implementation requests, use the available \`harness-develop\` skill or follow the same core workflow: map requirements to checks, assign independent tasks with exclusive file ownership and explicit dependencies, then integrate and verify as coordinator. State why when using a single-agent fallback.
+- Use the host's available agent tools. Do not assume Git worktrees or a particular orchestration service exists.
 
 Response contract:
 - Include \`References used\`, \`Constraints\`, \`Conflicts or gaps\`, and \`Escalation\`.
@@ -1941,8 +1972,11 @@ function auditRepoHarness(inputPath: string): AuditResult {
   assert(manifest.repoName, 'manifest.repoName is required');
   assert(manifest.paths, 'manifest.paths is required');
   for (const file of ['AGENTS.md', 'CLAUDE.md', 'harness/workflow.md']) {
-    if (!readTextIfExists(join(repoRoot, file)).trim()) {
+    const instructions = readTextIfExists(join(repoRoot, file)).trim();
+    if (!instructions) {
       addFinding(findings, 'warning', 'agent-entry-missing', `Missing or empty agent workflow file: ${file}`, join(repoRoot, file));
+    } else if (file !== 'harness/workflow.md' && !instructions.includes('harness/workflow.md')) {
+      addFinding(findings, 'warning', 'agent-workflow-unlinked', `Agent instructions do not reference harness/workflow.md: ${file}. Preserve existing policy and integrate the shared workflow.`, join(repoRoot, file));
     }
   }
   const maintenancePath = join(repoRoot, 'harness/maintenance.json');

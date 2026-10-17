@@ -56,7 +56,7 @@ Before starting real work:
 4. Create `harness/verify.json` using your project's real verification command (see below).
 5. Commit the agent entry files and harness policy with your project. Keep generated evidence local or in CI artifacts.
 
-Built-in recommendations cover Next.js, React, Kotlin Spring, and Kotlin Ktor. Other stacks can use the same repo kit with manually authored constraints and checks; detection is not universal.
+Built-in recommendations cover Next.js, React, Kotlin Spring, and Kotlin Ktor. Python/FastAPI and dependency-free Node ESM/test-runner signals are also detected without automatically recommending a policy pack. Other stacks can use the same repo kit with manually authored constraints and checks; detection is not universal.
 
 ## Use with Claude or Codex
 
@@ -73,6 +73,22 @@ Do not claim completion when required checks fail.
 ```
 
 Source priority is **feature spec → related ADR → constraints → golden rules → general context**. Conflicting decisions must be surfaced rather than silently replaced. An optional [harness-apply skill](skills/harness-apply/SKILL.md) and [reference](skills/harness-apply/references/repo-kit.md) are included for environments that support skill installation.
+
+## Develop from requirements with multiple agents
+
+Use the optional [harness-develop skill](skills/harness-develop/SKILL.md) when you want implementation, rather than policy setup alone. It analyzes requirements, maps each acceptance criterion to a check, assigns independent work with exclusive file ownership, and requires the coordinator to integrate and verify the final result.
+
+```text
+Use harness-develop to implement <requirements> in this project.
+Read the project harness first, split independent work across available agents,
+and report acceptance coverage and integrated verification evidence.
+```
+
+See the [workflow and adoption lessons](docs/multi-agent-development.md) for ownership rules and tested boundaries.
+
+The skill uses the host's available agent tools. It does not launch agents by itself or require a new service. If delegation is unavailable or the task is tightly coupled, it explains the single-agent fallback. Projects without Git use explicit write ownership and isolated copies where needed; worktrees are not assumed.
+
+To try a skill without installing it, tell the agent to read the linked `SKILL.md` from your tool checkout. To install it, copy its directory into your environment's skill directory; keep a single maintained version when sharing it across agents. `harness-apply` handles adoption; `harness-develop` handles implementation. Neither grants permission to run production operations.
 
 ## Verify actual commands
 

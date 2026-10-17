@@ -52,3 +52,23 @@ test('detected project packs stay recommendations until approved',t=>{
  assert.ok(m.suggestedPacks.length>0);assert.deepEqual(m.approvedPacks,[]);
  assert.match(readFileSync(join(root,'harness/rules/golden-rules.md'),'utf8'),/require human approval/);
 });
+test('detects Python and dependency-free Node signals without approving packs',t=>{
+ const python=fixture(t);
+ writeFileSync(join(python,'pyproject.toml'),'[project]\nname = "offline-service"\ndependencies = ["fastapi>=0.100", "pytest>=8"]\n');
+ const p=JSON.parse(run('detect',python,'--format','json').stdout);
+ assert.match(p.stackSummary,/Python/);assert.ok(p.signals.some(x=>x.detail==='FastAPI'));
+ assert.deepEqual(p.suggestedPacks,[]);
+ const node=fixture(t);
+ writeFileSync(join(node,'package.json'),JSON.stringify({type:'module',engines:{node:'>=20'},scripts:{test:'node --test'}}));
+ const n=JSON.parse(run('detect',node,'--format','json').stdout);
+ assert.match(n.stackSummary,/Node.js/);assert.ok(n.signals.some(x=>x.detail==='Node.js test runner'));
+ assert.deepEqual(n.suggestedPacks,[]);
+});
+test('preserved existing entry policies require explicit shared workflow integration',t=>{
+ const root=fixture(t);writeFileSync(join(root,'AGENTS.md'),'Preserve running jobs.');
+ run('init','repo-kit','--output',root);
+ const audit=()=>JSON.parse(run('audit',root,'--format','json').stdout);
+ assert.ok(audit().findings.some(x=>x.code==='agent-workflow-unlinked'));
+ writeFileSync(join(root,'AGENTS.md'),'Preserve running jobs.\nRead harness/workflow.md.\n');
+ assert.ok(!audit().findings.some(x=>x.code==='agent-workflow-unlinked'));
+});

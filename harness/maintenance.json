@@ -1,4 +1,4 @@
 {
-  "reviewedAt": "2026-10-17T00:01:29.207389+00:00",
-  "summary": "Reviewed shared instructions, ADR links, pack policy and verification. Kept agent entry points thin and centralized workflow; preserved prior decisions and user edits. Added initialization, agent-entry, maintenance and stack recommendation regressions (13 tests passed). No approved packs to prune. Large src/index.ts decomposition deferred to a dedicated behavior-preserving change."
+  "reviewedAt": "2026-10-17T22:01:01.782517+00:00",
+  "summary": "Reviewed real-project adoption and requirement-driven delegation. Kept harness-apply for policy adoption and added a focused development skill with conditional bootstrap reference. Corrected generic stack signals and disconnected entry-point checks with regression coverage. Independent forward testing exposed incompatible bootstrap and abbreviated worker paths; updated the skill. No approved packs to prune; project details and raw evidence remain local."
 }

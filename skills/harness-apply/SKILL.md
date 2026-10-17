@@ -11,14 +11,16 @@ Use this skill when the user wants to apply harness engineering to a repo, or wh
 
 1. Locate the harness manifest.
    - Prefer `harness/manifest.json` from the repo root.
-   - If missing, report that the repo is not harness-ready and suggest scaffolding with `node dist/index.js init repo-kit --output <repo>`.
+   - If missing and adoption is requested, inspect existing instructions, source, build/test scripts and operational constraints, then bootstrap the minimal project-specific harness within current permissions. Do not stop merely because the artifact you were asked to create is absent.
+   - Resolve the tool checkout explicitly before using `node <tool-root>/dist/index.js init repo-kit --output <repo>`. Build it if needed. The target project need not contain this CLI or Git metadata.
+   - Preserve existing files; integrate the shared workflow into both agent entry points rather than assuming skipped files were merged. Adapt generated examples to real requirements and safe checks.
 2. Read the manifest and obey its source priority.
    - Default priority is `feature spec -> related adr -> constraints -> golden rules -> general repo context`.
    - Do not replace a repo decision with generic advice.
    - Read `approvedPacks` first. If `approvedPacks` is empty, `suggestedPacks` are recommendations only and must not silently become source of truth.
 3. Identify the active feature spec.
    - If the user names a spec, use that file.
-   - Otherwise search `harness/specs/` for the most relevant spec and say which one you selected.
+   - Otherwise search `harness/specs/` for the most relevant spec and say which one you selected. When adoption or a new feature requires a missing spec, author it from the inspected repository and user requirements; ask only about material unresolved requirements.
 4. Read linked ADRs before proposing design or code changes.
    - If a linked ADR is missing or conflicts with the spec, escalate rather than guessing.
 5. Read shared rules.
@@ -26,7 +28,12 @@ Use this skill when the user wants to apply harness engineering to a repo, or wh
    - Always load `harness/rules/constraints.md`.
    - If an approved profile pack exists, apply its stack-specific guidance while reading the rules.
    - If only suggested packs exist, call them out as recommendations and ask for approval before treating them as durable project policy.
-6. Produce harness-aware output.
+6. Verify adoption and route development.
+   - Choose meaningful offline or isolated checks from inspected code; do not use operational commands as generic tests. Keep credentials, live state and generated caches out of evidence inputs.
+   - Generate current execution evidence, check it, then audit. A preexisting bundle or a narrative report is not proof of this change. Report command failures and untested behavior without inventing results.
+   - For implementation requests, use `harness-develop` if available, or apply its core approach directly: requirement/check mapping, independent tasks with exclusive file ownership, dependency order, coordinator integration and final checks. No new orchestration runtime is required.
+   - Review maintenance status and record completed reviews honestly. Never advance a timestamp merely to silence audit.
+7. Produce harness-aware output.
    - State the spec, ADRs, rules, and approved/suggested packs you used.
    - State missing artifacts or conflicts.
    - Block completion when critical requirements or acceptance criteria are missing.
@@ -43,7 +50,7 @@ Every substantive response should include these fields in plain language:
 
 ## Blocking Rules
 
-Treat these as blocking by default:
+Treat these as blockers to declaring adoption/development complete. Resolve missing artifacts within the authorized task before escalating:
 
 - no `harness/manifest.json`
 - no active feature spec for non-trivial work
@@ -55,6 +62,8 @@ Treat these as blocking by default:
 Non-blocking drift should still be called out with a concrete fix path.
 
 ## Useful Commands
+
+Run from the resolved harness-lab checkout; these paths are not relative to the target project.
 
 - `node dist/index.js audit <repo-or-manifest> --format md`
 - `node dist/index.js plan <feature-spec.md> --format text`

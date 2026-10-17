@@ -47,4 +47,4 @@ Run verification before audit when a contract references generated `checks.json`
 
 ## Known boundaries
 
-Audits check structure and selected content, not the semantic truth of documentation. Agent entry checks establish presence, not that the model followed instructions. Profile detection supports a fixed set of signals. Live-agent benchmarks and automatic instruction cleanup are not implemented. The evidence checker detects accidental drift and tampering against recorded hashes, not a malicious party rewriting the entire bundle.
+Audits check structure and selected content, not the semantic truth of documentation. Existing agent entry points must reference `harness/workflow.md`; an unlinked preserved file is reported as `agent-workflow-unlinked`. Agent entry checks establish presence, not that the model followed instructions. Profile detection supports a fixed set of signals. Live-agent benchmarks and automatic instruction cleanup are not implemented. The evidence checker detects accidental drift and tampering against recorded hashes, not a malicious party rewriting the entire bundle.
