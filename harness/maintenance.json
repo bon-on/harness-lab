@@ -1,0 +1,4 @@
+{
+  "reviewedAt": "2026-10-17T00:01:29.207389+00:00",
+  "summary": "Reviewed shared instructions, ADR links, pack policy and verification. Kept agent entry points thin and centralized workflow; preserved prior decisions and user edits. Added initialization, agent-entry, maintenance and stack recommendation regressions (13 tests passed). No approved packs to prune. Large src/index.ts decomposition deferred to a dedicated behavior-preserving change."
+}

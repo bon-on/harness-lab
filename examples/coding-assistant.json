@@ -1,75 +1,308 @@
 {
-  "name": "Coding Assistant Harness Comparison",
-  "description": "Compare prompt harness variants for code-review style assistant behavior.",
+  "name": "Software Engineering Harness Evaluation",
+  "description": "Compare software-engineering harness variants for review and implementation tasks, then assess maturity using repo-native evidence.",
+  "workflow": {
+    "pattern": "generate-verify",
+    "objective": "Implement and review engineering work with explicit planning, verification, and escalation rules.",
+    "orchestration": {
+      "handoff": "builder -> reviewer",
+      "reviewLoop": "Reviewer sends blocking findings back to builder until all quality gates pass.",
+      "verification": "Run tests or test-equivalent checks, then compare acceptance criteria coverage before closing the task.",
+      "escalation": "Escalate conflicting requirements, flaky verification, or missing environment access.",
+      "retryPolicy": "Allow one corrective rerun before escalation."
+    }
+  },
   "variants": [
     {
       "id": "baseline",
+      "label": "Baseline Prompt",
       "system": "You are a helpful coding assistant.",
-      "userTemplate": "Review this API handler and give feedback: {{snippet}}"
+      "developer": "Answer directly and keep the response concise.",
+      "userTemplate": "Handle this engineering task: {{task}}",
+      "agents": [
+        {
+          "id": "solo",
+          "role": "Generalist engineer",
+          "responsibilities": [
+            "Inspect the task",
+            "Return a direct answer"
+          ],
+          "expectedOutputs": [
+            "single response"
+          ]
+        }
+      ],
+      "orchestration": {
+        "handoff": "none"
+      }
     },
     {
       "id": "structured-reviewer",
-      "system": "You are a senior backend reviewer. Be concise, concrete, and skeptical.",
-      "developer": "Always structure feedback as: risks, missing tests, suggested fix. Mention production impact when relevant.",
-      "userTemplate": "Review this API handler and give feedback: {{snippet}}"
+      "label": "Structured Reviewer Harness",
+      "system": "You are a senior software engineer operating inside a harness with explicit planning and review steps.",
+      "developer": "Always produce plan, execution, verification, and risks. Validate against acceptance criteria. Require tests and documented next steps.",
+      "userTemplate": "Task: {{task}}\nAcceptance criteria: {{acceptance}}\nRepo context: {{context}}",
+      "agents": [
+        {
+          "id": "builder",
+          "role": "Implementation engineer",
+          "responsibilities": [
+            "Write a short plan",
+            "Implement the change",
+            "Record verification evidence"
+          ],
+          "expectedOutputs": [
+            "plan",
+            "implementation summary",
+            "verification notes"
+          ]
+        },
+        {
+          "id": "reviewer",
+          "role": "Quality reviewer",
+          "responsibilities": [
+            "Check acceptance criteria",
+            "Check tests and risks",
+            "Approve or request fixes"
+          ],
+          "expectedOutputs": [
+            "review findings",
+            "approval status"
+          ]
+        }
+      ],
+      "skills": [
+        "planning",
+        "code-review"
+      ],
+      "orchestration": {
+        "handoff": "builder -> reviewer",
+        "reviewLoop": "Repeat until no blocking findings remain.",
+        "verification": "Reviewer checks the builder output for tests, acceptance coverage, and operational risks.",
+        "escalation": "Escalate ambiguous failures or contradictory requirements.",
+        "retryPolicy": "One corrective pass before escalation."
+      }
     },
     {
       "id": "decision-oriented",
-      "system": "You are a pragmatic staff engineer.",
-      "developer": "Do not just explain. Prioritize findings by severity. Call out concurrency, validation, and observability issues.",
-      "userTemplate": "Review this API handler and give feedback: {{snippet}}"
+      "label": "Decision-Oriented Engineering Harness",
+      "system": "You are a staff engineer running a generate-verify harness for software changes.",
+      "developer": "State plan, implementation decision, verification result, risk, and escalation status. Prioritize validation, observability, and operational correctness. Use structured output only.",
+      "userTemplate": "Task: {{task}}\nAcceptance criteria: {{acceptance}}\nRelevant files: {{context}}",
+      "agents": [
+        {
+          "id": "planner",
+          "role": "Execution planner",
+          "responsibilities": [
+            "Turn the request into acceptance-focused plan steps",
+            "Declare constraints and assumptions"
+          ],
+          "expectedOutputs": [
+            "execution plan"
+          ]
+        },
+        {
+          "id": "builder",
+          "role": "Implementation engineer",
+          "responsibilities": [
+            "Implement the selected approach",
+            "Keep changes aligned with repo constraints"
+          ],
+          "expectedOutputs": [
+            "change summary"
+          ]
+        },
+        {
+          "id": "verifier",
+          "role": "Verification engineer",
+          "responsibilities": [
+            "Confirm tests and acceptance criteria coverage",
+            "Trigger escalation on unresolved ambiguity"
+          ],
+          "expectedOutputs": [
+            "verification report",
+            "escalation status"
+          ]
+        }
+      ],
+      "skills": [
+        "planning",
+        "implementation",
+        "verification"
+      ],
+      "orchestration": {
+        "handoff": "planner -> builder -> verifier",
+        "reviewLoop": "Verifier can return failures to builder for one rerun.",
+        "verification": "Verifier confirms plan, tests, observability, and operational constraints.",
+        "escalation": "Escalate flaky checks, missing acceptance criteria, or blocked dependencies.",
+        "retryPolicy": "One rerun after verifier feedback, then escalate."
+      }
     }
   ],
   "cases": [
     {
       "id": "missing-validation",
       "variables": {
-        "snippet": "app.post('/user', async (req, res) => { await db.insert(req.body); res.send('ok'); })"
+        "task": "Review an API handler that inserts req.body directly into the database.",
+        "acceptance": "Mention validation, tests, and production risk.",
+        "context": "src/api/user.ts"
       },
       "mockOutput": {
         "baseline": "Looks mostly fine. Maybe add some validation.",
-        "structured-reviewer": "Risks: req.body is inserted directly without validation. Missing tests: invalid payload, empty body. Suggested fix: validate schema before insert and return 400 on bad input.",
-        "decision-oriented": "High severity: raw req.body insert enables invalid data. Missing observability around failed inserts. Add request validation, error handling, and tests for malformed payloads."
+        "structured-reviewer": "Plan: inspect the handler and payload boundary. Execution: req.body is inserted without validation. Verification: add tests for invalid payload, empty body, and malformed schema. Risks: invalid data can enter production and break downstream consumers.",
+        "decision-oriented": "Plan: validate the boundary before persistence. Decision: direct req.body insertion is high risk. Verification: require schema validation, 400-path tests, and error logging. Risk: bad payloads can corrupt data and reduce operational confidence. Escalation: not required."
       },
       "checks": [
         {
           "type": "includesAll",
-          "values": ["validation", "tests"]
+          "values": [
+            "validation",
+            "tests",
+            "risk"
+          ],
+          "weight": 2
         },
         {
           "type": "excludesAll",
-          "values": ["looks mostly fine"]
+          "values": [
+            "looks mostly fine"
+          ],
+          "weight": 1
         },
         {
           "type": "maxLength",
-          "value": 260
+          "value": 380,
+          "weight": 1
         }
       ]
     },
     {
-      "id": "missing-observability",
+      "id": "bugfix-verification",
       "variables": {
-        "snippet": "async function syncJobs() { const jobs = await fetchJobs(); await saveAll(jobs); }"
+        "task": "Fix a background sync function that has no metrics, no retry path, and unclear failure handling.",
+        "acceptance": "Mention plan, verification, tests, and escalation behavior.",
+        "context": "src/jobs/sync.ts"
       },
       "mockOutput": {
-        "baseline": "Add logs.",
-        "structured-reviewer": "Risks: failures in fetchJobs or saveAll have no logging or retry path. Missing tests: upstream failure, partial save failure. Suggested fix: add logging, metrics, and retry strategy.",
-        "decision-oriented": "Medium severity: no logs, metrics, or retry strategy around sync pipeline. Add counters for fetched/saved jobs, error logs, and tests for upstream timeout and partial persistence failure."
+        "baseline": "Add logs and maybe retries.",
+        "structured-reviewer": "Plan: inspect fetch and save failure paths. Execution: add retry handling, metrics, and structured errors around the sync pipeline. Verification: add tests for upstream timeout and partial persistence failure. Risks: hidden sync failures can silently drop data. Escalation: required if retries still fail after one rerun.",
+        "decision-oriented": "Plan: treat the sync as a generate-verify loop. Decision: add metrics, bounded retry, and explicit escalation when verification remains red. Verification: test timeout, partial save, and exhausted retry cases. Risk: silent failure hides data loss. Escalation: page the owner when the rerun still fails."
       },
       "checks": [
         {
           "type": "includesAll",
-          "values": ["logs", "metrics"]
+          "values": [
+            "plan",
+            "verification",
+            "tests",
+            "escalation"
+          ],
+          "weight": 2
         },
         {
           "type": "includesAll",
-          "values": ["tests"]
+          "values": [
+            "retry"
+          ],
+          "weight": 1
         },
         {
           "type": "maxLength",
-          "value": 280
+          "value": 420,
+          "weight": 1
         }
       ]
     }
-  ]
+  ],
+  "skills": [
+    {
+      "id": "planning",
+      "description": "Write short execution plans tied to acceptance criteria and verification.",
+      "appliesTo": [
+        "planner",
+        "builder"
+      ]
+    },
+    {
+      "id": "code-review",
+      "description": "Check validation, tests, observability, and operational risk.",
+      "appliesTo": [
+        "reviewer"
+      ]
+    },
+    {
+      "id": "verification",
+      "description": "Validate test evidence, acceptance coverage, and escalation triggers.",
+      "appliesTo": [
+        "verifier"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "execution-plan",
+      "type": "plan",
+      "required": true,
+      "description": "Versioned plan for the task."
+    },
+    {
+      "id": "design-note",
+      "type": "design-note",
+      "required": false,
+      "description": "Decision record for noteworthy tradeoffs."
+    },
+    {
+      "id": "eval-report",
+      "type": "eval-report",
+      "required": true,
+      "description": "Harness comparison report."
+    },
+    {
+      "id": "review-response",
+      "type": "review-response",
+      "required": false,
+      "description": "Recorded response to reviewer findings."
+    }
+  ],
+  "qualityGates": [
+    {
+      "type": "documented-plan",
+      "weight": 1,
+      "description": "Work must start from a written plan."
+    },
+    {
+      "type": "tests-required",
+      "weight": 1,
+      "description": "Tests or test evidence must be present."
+    },
+    {
+      "type": "structured-output",
+      "weight": 1,
+      "description": "Responses must follow structured sections."
+    },
+    {
+      "type": "reviewer-loop",
+      "weight": 1,
+      "description": "A reviewer/verifier loop must exist."
+    },
+    {
+      "type": "escalation-defined",
+      "weight": 1,
+      "description": "Blocked or ambiguous work must escalate."
+    }
+  ],
+  "maturityEvidence": {
+    "plansVersioned": true,
+    "docsVersioned": true,
+    "reusableHarnessPatterns": true,
+    "rolesDefined": true,
+    "evalCasesRepeatable": true,
+    "scoringRubricDefined": true,
+    "reportsGenerated": true,
+    "qualityGatesAutomated": false,
+    "structuralGuardrails": true,
+    "reviewLoopEncoded": true,
+    "escalationPolicyDefined": true,
+    "recoveryWorkflowDefined": true
+  }
 }

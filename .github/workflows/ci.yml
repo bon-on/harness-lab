@@ -1,0 +1,46 @@
+name: Verify harness
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Run tests and collect evidence
+        run: node dist/index.js verify . harness/verify.json --output out/evidence/latest
+      - name: Validate evidence
+        run: node dist/index.js check-evidence out/evidence/latest/checks.json .
+      - name: Audit project and maintenance
+        if: ${{ !cancelled() }}
+        run: |
+          node dist/index.js audit . --format md --output out/audit.md
+      - name: Show audit findings
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f out/audit.md ]; then
+            cat out/audit.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: harness-evidence-node-${{ matrix.node }}
+          path: out/
+          retention-days: 7

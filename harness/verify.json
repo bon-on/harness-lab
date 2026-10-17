@@ -1,0 +1,22 @@
+{
+  "command": [
+    "npm",
+    "test"
+  ],
+  "inputs": [
+    "src",
+    "test",
+    "harness",
+    "package.json",
+    "package-lock.json",
+    "tsconfig.json",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "README.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "docs",
+    ".github"
+  ],
+  "timeoutMs": 120000
+}

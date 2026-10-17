@@ -1,13 +1,19 @@
 {
   "name": "harness-lab",
   "version": "0.1.0",
-  "description": "CLI playground for prompt and harness engineering experiments",
+  "description": "Project-specific harness workflows, ADRs, rules, and command verification for Claude and Codex",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
+    "test": "npm run build && node --test test/*.test.mjs",
     "build": "tsc -p tsconfig.json",
-    "dev": "tsx src/index.ts examples/coding-assistant.json",
-    "start": "node dist/index.js examples/coding-assistant.json"
+    "dev": "tsx src/index.ts run examples/coding-assistant.json",
+    "start": "node dist/index.js run examples/coding-assistant.json",
+    "detect": "node dist/index.js detect examples/detect/nextjs-app --format md --output reports/detect-nextjs-report.md",
+    "maturity": "node dist/index.js maturity examples/coding-assistant.json",
+    "report": "node dist/index.js report examples/coding-assistant.json --format md --output reports/coding-assistant-report.md",
+    "audit": "node dist/index.js audit examples/repo-kit --format md --output reports/repo-kit-audit-report.md",
+    "plan": "node dist/index.js plan examples/repo-kit/harness/specs/feature-harness-apply.md --format md --output reports/repo-kit-plan-report.md"
   },
   "keywords": [
     "prompt-engineering",
@@ -19,7 +25,19 @@
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {
+    "@types/node": "^24.6.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3"
-  }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bon-on/harness-lab.git"
+  },
+  "bugs": {
+    "url": "https://github.com/bon-on/harness-lab/issues"
+  },
+  "homepage": "https://github.com/bon-on/harness-lab#readme"
 }
