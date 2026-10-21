@@ -5,16 +5,17 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const readmes = { en: ['README.md', 'docs/images/harness-structure.svg'], ko: ['README.ko.md', 'docs/images/harness-structure.ko.svg'] };
+// README.md is Korean so GitHub shows it first; README.en.md is the English mirror.
+const readmes = { ko: ['README.md', 'docs/images/harness-structure.ko.svg'], en: ['README.en.md', 'docs/images/harness-structure.svg'] };
 const headingLevels = text => text.split('\n').filter(line => /^#+ /.test(line)).map(line => line.match(/^#+/)[0].length);
 const diagramNames = svg => [...svg.matchAll(/<tspan class="(?:name|claude|harness)">([^<]+)<\/tspan>/g)].map(match => match[1]);
 
-test('English and Korean READMEs mirror each other and link their diagrams', () => {
-  const en = readFileSync(readmes.en[0], 'utf8');
+test('Korean and English READMEs mirror each other and link their diagrams', () => {
   const ko = readFileSync(readmes.ko[0], 'utf8');
-  assert.match(en, /\]\(README\.ko\.md\)/);
-  assert.match(ko, /\]\(README\.md\)/);
-  assert.deepEqual(headingLevels(ko), headingLevels(en), 'README.ko.md must keep the same heading structure as README.md');
+  const en = readFileSync(readmes.en[0], 'utf8');
+  assert.match(ko, /\]\(README\.en\.md\)/);
+  assert.match(en, /\]\(README\.md\)/);
+  assert.deepEqual(headingLevels(en), headingLevels(ko), 'README.en.md must keep the same heading structure as README.md');
   for (const [readme, image] of Object.values(readmes)) {
     assert.ok(readFileSync(readme, 'utf8').includes(`](${image})`), `${readme} must show ${image}`);
   }

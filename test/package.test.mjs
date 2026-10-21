@@ -31,7 +31,7 @@ test('release tarball installs offline and runs independently without developmen
     'skills/harness-apply/SKILL.md', 'skills/harness-develop/SKILL.md', 'skills/harness-review/SKILL.md', 'README.md', 'LICENSE']) {
     assert.ok(files.includes(expected), `release is missing ${expected}`);
   }
-  assert.ok(files.every(file => /^(dist\/|bin\/|skills\/|package\.json$|README(\.ko)?\.md$|LICENSE$)/.test(file)),
+  assert.ok(files.every(file => /^(dist\/|bin\/|skills\/|package\.json$|README(\.en)?\.md$|LICENSE$)/.test(file)),
     `unexpected release files: ${files.join(', ')}`);
   assert.equal(existsSync(cache), false, 'installation must start with a fresh cache');
 
