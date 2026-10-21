@@ -33,7 +33,7 @@ harness-lab doctor
 harness-lab audit . --format text
 ```
 
-Initialization creates missing files and **preserves existing files**. If your project already has `AGENTS.md` or `CLAUDE.md`, add a reference to `harness/workflow.md` yourself; skipped instructions are not merged automatically. You can pass a project path to `init` or `doctor` instead of changing directories.
+Initialization creates missing files and **preserves existing files**. If your project already has `AGENTS.md` or `CLAUDE.md`, add a reference to `harness/workflow.md` yourself (in `CLAUDE.md`, use the `@harness/workflow.md` import so Claude Code loads it automatically); skipped instructions are not merged automatically. You can pass a project path to `init` or `doctor` instead of changing directories.
 
 A new kit's pending maintenance review is expected: scaffolding is not a completed project review. Generated specs and narrative reports are examples, not proof that your application works.
 

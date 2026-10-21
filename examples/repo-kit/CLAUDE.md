@@ -1,3 +1,5 @@
 # Claude entry point
 
-Read and follow [the shared workflow](harness/workflow.md) before substantive work.
+Follow the shared workflow before substantive work. Claude Code loads it through this import:
+
+@harness/workflow.md

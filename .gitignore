@@ -8,3 +8,4 @@ dist/
 /reports/
 /.harness-lab/backups/
 /.harness-lab/lock
+.claude/settings.local.json

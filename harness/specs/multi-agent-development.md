@@ -1,7 +1,7 @@
 ---
 id: multi-agent-development
 title: Apply real-project harnesses and coordinate requirement-driven development
-status: active
+status: maintained
 related_adrs:
   - multi-agent-development
 related_contracts:

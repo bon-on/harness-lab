@@ -28,7 +28,7 @@ Create `harness/manifest.json`, using the inspected project name:
 
 ## Minimum project artifacts
 
-- Preserve existing `AGENTS.md` and `CLAUDE.md`; add a reference to `harness/workflow.md`. Put shared development policy in the workflow and task-specific details in the spec.
+- Preserve existing `AGENTS.md` and `CLAUDE.md`; add a reference to `harness/workflow.md` (an `@harness/workflow.md` import in `CLAUDE.md`). Put shared development policy in the workflow and task-specific details in the spec.
 - Write inspected project constraints and durable golden rules in the paths declared above. Do not approve a recommended pack implicitly.
 - A feature spec has frontmatter `id`, `title`, `status`, `related_adrs`, `related_contracts`, and sections `## Problem`, `## Scope`, `## Acceptance Criteria`, `## Constraints`, `## Evidence`. Acceptance criteria use `- ` bullet lines with observable outcomes.
 - An ADR has frontmatter `id`, `title`, `status`, `related_specs`, and sections `## Context`, `## Decision`, `## Consequences`. Record the actual decision and tradeoffs.

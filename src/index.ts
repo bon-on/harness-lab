@@ -1511,7 +1511,7 @@ Follow this repository-local workflow for substantive work. The \`harness-apply\
 
 Startup sequence:
 1. Read \`harness/manifest.json\`.
-2. Select the active feature spec from \`harness/specs/\`.
+2. Select the feature spec in \`harness/specs/\` whose Scope covers the request, and read specs it also touches as secondary. Specs move \`draft\` -> \`active\` (under development) -> \`maintained\` (implemented regression baseline); \`active\` and \`maintained\` specs are both selectable. If no spec fits, write one from \`harness/templates/feature-spec.md\` before changing code; if several fit equally, ask the user. State which spec you selected.
 3. Read \`approvedPacks\` from the manifest. If it is empty, treat \`suggestedPacks\` as recommendations only.
 4. Read linked ADRs and contracts before making code changes.
 5. Read \`harness/rules/constraints.md\` and \`harness/rules/golden-rules.md\`.
@@ -1530,7 +1530,7 @@ Response contract:
 `;
   const goldenRules = `# Golden Rules
 
-1. Work from the active feature spec before editing code.
+1. Work from the selected feature spec before editing code.
 2. Honor linked ADRs when they exist. Escalate conflicts instead of silently overriding them.
 3. Keep plans, verification evidence, and review notes repo-native.
 4. Block completion when critical requirements or verification evidence are missing.
@@ -1764,7 +1764,7 @@ Create the minimum repo-native harness workflow needed for spec-driven and ADR-a
 
   return {
     'AGENTS.md': '# Codex entry point\n\nRead and follow [the shared workflow](harness/workflow.md) before substantive work.\n',
-    'CLAUDE.md': '# Claude entry point\n\nRead and follow [the shared workflow](harness/workflow.md) before substantive work.\n',
+    'CLAUDE.md': '# Claude entry point\n\nFollow the shared workflow before substantive work. Claude Code loads it through this import:\n\n@harness/workflow.md\n',
     'harness/workflow.md': agents,
     'harness/maintenance.json': JSON.stringify({ reviewedAt: null, summary: '' }, null, 2) + '\n',
     'harness/manifest.json': manifest,
@@ -2006,6 +2006,8 @@ function auditRepoHarness(inputPath: string): AuditResult {
       addFinding(findings, 'warning', 'agent-entry-missing', `Missing or empty agent workflow file: ${file}`, join(repoRoot, file));
     } else if (file !== 'harness/workflow.md' && !instructions.includes('harness/workflow.md')) {
       addFinding(findings, 'warning', 'agent-workflow-unlinked', `Agent instructions do not reference harness/workflow.md: ${file}. Preserve existing policy and integrate the shared workflow.`, join(repoRoot, file));
+    } else if (file === 'CLAUDE.md' && !/(^|\s)@(\.\/)?harness\/workflow\.md(\s|$)/.test(instructions)) {
+      addFinding(findings, 'warning', 'claude-workflow-not-imported', 'CLAUDE.md mentions harness/workflow.md without an @harness/workflow.md import, so Claude Code does not load it automatically.', join(repoRoot, file));
     }
   }
   const maintenancePath = join(repoRoot, 'harness/maintenance.json');

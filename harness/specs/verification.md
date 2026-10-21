@@ -1,7 +1,7 @@
 ---
 id: verification
 title: Execution evidence and reliable CLI gates
-status: active
+status: maintained
 related_adrs:
   - evidence
   - portable-harness
@@ -22,6 +22,7 @@ Document presence and mock scores do not prove execution success.
 - Label mock evaluation distinctly from executed regression evidence.
 - CLI tests cover failures and successes; preserve existing user edits.
 - Generate Codex and Claude entry points that share one repository-local workflow without requiring a globally installed skill.
+- The Claude entry point imports the workflow with `@harness/workflow.md`; audit warns when CLAUDE.md only links it.
 - Reinitialization preserves existing project files and reports skipped paths.
 - Audit reports missing agent entry points and missing, invalid or overdue maintenance reviews.
 - Maintenance reviews record simplification, verification and improvement decisions every 30 days.

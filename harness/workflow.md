@@ -4,7 +4,7 @@ Follow this repository-local workflow for substantive work. The `harness-apply` 
 
 Startup sequence:
 1. Read `harness/manifest.json`.
-2. Select the active feature spec from `harness/specs/`.
+2. Select the feature spec in `harness/specs/` whose Scope covers the request, and read specs it also touches as secondary. Specs move `draft` -> `active` (under development) -> `maintained` (implemented regression baseline); `active` and `maintained` specs are both selectable. If no spec fits, write one from `harness/templates/feature-spec.md` before changing code; if several fit equally, ask the user. State which spec you selected.
 3. Read `approvedPacks` from the manifest. If it is empty, treat `suggestedPacks` as recommendations only.
 4. Read linked ADRs and contracts before making code changes.
 5. Read `harness/rules/constraints.md` and `harness/rules/golden-rules.md`.

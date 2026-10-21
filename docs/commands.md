@@ -53,7 +53,7 @@ Run verification before audit when a contract references generated `checks.json`
 | Update preserves an existing file | The file is unmanaged or locally changed/deleted; compare and integrate deliberately. Re-running init does not adopt it |
 | Rollback refuses a change | A file or state changed since the update; inspect the transaction backup and preserve newer work |
 | `dist/index.js` not found | Run `npm ci` then `npm run build` in the tool checkout |
-| Existing agent instructions were skipped | Add a reference to `harness/workflow.md` in those files and review integration |
+| Existing agent instructions were skipped | Add a reference to `harness/workflow.md` in those files (`@harness/workflow.md` in `CLAUDE.md`) and review integration |
 | Missing manifest | Initialize a repo kit in the correct target path |
 | Missing linked ADR or contract | Match frontmatter IDs and update both forward links and `related_specs` backlinks |
 | Verification cannot find an input | Adapt `inputs` to actual project paths; optional nonexistent directories are not ignored |
@@ -64,4 +64,4 @@ Run verification before audit when a contract references generated `checks.json`
 
 ## Known boundaries
 
-Audits check structure and selected content, not the semantic truth of documentation. Existing agent entry points must reference `harness/workflow.md`; an unlinked preserved file is reported as `agent-workflow-unlinked`. Agent entry checks establish presence, not that the model followed instructions. Profile detection supports a fixed set of signals. Live-agent benchmarks and automatic instruction cleanup are not implemented. The evidence checker detects accidental drift and tampering against recorded hashes, not a malicious party rewriting the entire bundle.
+Audits check structure and selected content, not the semantic truth of documentation. Existing agent entry points must reference `harness/workflow.md`; an unlinked preserved file is reported as `agent-workflow-unlinked`. A `CLAUDE.md` that mentions the workflow without an `@harness/workflow.md` import is reported as `claude-workflow-not-imported`, because Claude Code does not follow plain links. Agent entry checks establish presence, not that the model followed instructions. Profile detection supports a fixed set of signals. Live-agent benchmarks and automatic instruction cleanup are not implemented. The evidence checker detects accidental drift and tampering against recorded hashes, not a malicious party rewriting the entire bundle.

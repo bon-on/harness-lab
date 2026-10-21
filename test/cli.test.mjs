@@ -25,7 +25,9 @@ test('both agents share a local workflow and initialization preserves policy',t=
  const root=fixture(t);
  assert.equal(run('init','repo-kit','--output',root).status,0);
  for(const name of ['AGENTS.md','CLAUDE.md']) assert.match(readFileSync(join(root,name),'utf8'),/harness\/workflow.md/);
+ assert.match(readFileSync(join(root,'CLAUDE.md'),'utf8'),/^@harness\/workflow\.md$/m);
  assert.match(readFileSync(join(root,'harness/workflow.md'),'utf8'),/skill is optional/);
+ assert.match(readFileSync(join(root,'harness/workflow.md'),'utf8'),/whose Scope covers the request.*`maintained`.*ask the user/s);
  writeFileSync(join(root,'AGENTS.md'),'project policy');
  const manifest=join(root,'harness/manifest.json');const original=readFileSync(manifest,'utf8');
  const r=run('init','repo-kit','--output',root);
@@ -71,4 +73,13 @@ test('preserved existing entry policies require explicit shared workflow integra
  assert.ok(audit().findings.some(x=>x.code==='agent-workflow-unlinked'));
  writeFileSync(join(root,'AGENTS.md'),'Preserve running jobs.\nRead harness/workflow.md.\n');
  assert.ok(!audit().findings.some(x=>x.code==='agent-workflow-unlinked'));
+});
+test('Claude entry point must import the shared workflow',t=>{
+ const root=fixture(t);run('init','repo-kit','--output',root);
+ const codes=()=>JSON.parse(run('audit',root,'--format','json').stdout).findings.map(x=>x.code);
+ assert.ok(!codes().includes('claude-workflow-not-imported'));
+ writeFileSync(join(root,'CLAUDE.md'),'Read [the workflow](harness/workflow.md).\n');
+ assert.ok(codes().includes('claude-workflow-not-imported'));
+ writeFileSync(join(root,'CLAUDE.md'),'Keep local notes.\nSee @./harness/workflow.md for policy.\n');
+ assert.ok(!codes().includes('claude-workflow-not-imported'));
 });

@@ -1,7 +1,7 @@
 ---
 id: publication
 title: Publish a reusable project harness toolkit
-status: active
+status: maintained
 related_adrs:
   - publication
 related_contracts:

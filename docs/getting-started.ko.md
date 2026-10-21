@@ -34,7 +34,7 @@ harness-lab doctor
 harness-lab audit . --format text
 ```
 
-`--dry-run`은 파일을 쓰지 않고 변경 계획만 보여줍니다. 기존 파일은 덮어쓰지 않고 보존 목록을 출력합니다. 이미 `AGENTS.md` 또는 `CLAUDE.md`가 있다면, 그 파일에서 `harness/workflow.md`를 읽도록 직접 연결해야 합니다.
+`--dry-run`은 파일을 쓰지 않고 변경 계획만 보여줍니다. 기존 파일은 덮어쓰지 않고 보존 목록을 출력합니다. 이미 `AGENTS.md` 또는 `CLAUDE.md`가 있다면, 그 파일에서 `harness/workflow.md`를 읽도록 직접 연결해야 합니다. `CLAUDE.md`에는 Claude Code가 자동으로 불러오도록 `@harness/workflow.md` import 줄을 넣으세요.
 
 프로젝트 정책과 `.harness-lab/state.json`은 Git에 함께 기록하세요. `.gitignore`에는 `out/`, `.harness-lab/backups/`, `.harness-lab/lock`을 직접 추가합니다. state는 도구가 생성한 파일의 추적 정보이고, backups는 로컬 복구용 자료입니다.
 

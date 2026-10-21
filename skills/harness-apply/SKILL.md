@@ -18,9 +18,9 @@ Use this skill when the user wants to apply harness engineering to a repo, or wh
    - Default priority is `feature spec -> related adr -> constraints -> golden rules -> general repo context`.
    - Do not replace a repo decision with generic advice.
    - Read `approvedPacks` first. If `approvedPacks` is empty, `suggestedPacks` are recommendations only and must not silently become source of truth.
-3. Identify the active feature spec.
+3. Identify the governing feature spec.
    - If the user names a spec, use that file.
-   - Otherwise search `harness/specs/` for the most relevant spec and say which one you selected. When adoption or a new feature requires a missing spec, author it from the inspected repository and user requirements; ask only about material unresolved requirements.
+   - Otherwise match the request to each spec's Scope in `harness/specs/` and say which one you selected; read overlapping specs as secondary. `maintained` specs are implemented regression baselines and remain selectable; ask when several fit equally. When adoption or a new feature requires a missing spec, author it from the inspected repository and user requirements; ask only about material unresolved requirements.
 4. Read linked ADRs before proposing design or code changes.
    - If a linked ADR is missing or conflicts with the spec, escalate rather than guessing.
 5. Read shared rules.
@@ -53,7 +53,7 @@ Every substantive response should include these fields in plain language:
 Treat these as blockers to declaring adoption/development complete. Resolve missing artifacts within the authorized task before escalating:
 
 - no `harness/manifest.json`
-- no active feature spec for non-trivial work
+- no selected feature spec for non-trivial work
 - feature spec missing acceptance criteria
 - linked ADR declared but missing
 - repo state contradicts spec or ADR and the correct source is unclear
@@ -72,6 +72,6 @@ Run from the resolved harness-lab checkout; these paths are not relative to the 
 ## Notes
 
 - Prefer repo-native Markdown and JSON artifacts over long prompt-only instructions.
-- Keep implementation plans narrow and directly tied to the active feature spec.
+- Keep implementation plans narrow and directly tied to the selected feature spec.
 - For stack-sensitive work, prefer project-approved pack guidance over generic framework knowledge.
 - If the repo has no harness kit yet, scaffold first, then continue with spec-driven work.

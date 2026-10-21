@@ -1,7 +1,7 @@
 ---
 id: installation-updates
 title: Installable CLI and non-destructive project updates
-status: active
+status: maintained
 related_adrs:
   - installation-updates
 related_contracts:
