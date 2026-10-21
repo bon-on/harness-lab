@@ -25,6 +25,9 @@
     "AGENTS.md",
     "CLAUDE.md",
     "harness/workflow.md",
-    "harness/maintenance.json"
+    "harness/maintenance.json",
+    "harness/templates/feature-spec.md",
+    "harness/templates/adr.md",
+    "harness/templates/contract.md"
   ]
 }

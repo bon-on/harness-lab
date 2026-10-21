@@ -34,7 +34,7 @@ harness-lab verify /path/to/project /path/to/project/harness/verify.json \
 ## Verification config
 
 - `command`: nonempty argv array, e.g. `["npm", "test"]`. Shell syntax such as `&&` or pipes is not interpreted. For multiple checks, create a project script and invoke that script.
-- `inputs`: nonempty list of existing repo-relative files/directories. Changes, additions, and deletions in this scope invalidate stored evidence. Symlinks and paths outside the repo are rejected. Include the verification config and relevant rules; exclude build output, evidence output, dependencies, and secrets.
+- `inputs`: nonempty list of existing repo-relative files/directories. Changes, additions, and deletions in this scope invalidate stored evidence. Symlinks and paths outside the repo are rejected. Include the verification config and relevant rules; exclude build output, evidence output, dependencies, and secrets. The evidence output directory must neither lie inside an input nor contain one, after resolving symlinks; for example, `--output .` with `src` as an input is refused. Existing `stdout.txt`, `stderr.txt`, or `checks.json` entries that are symlinks or hardlinks are refused before the command runs.
 - `timeoutMs`: integer from 1 to 3,600,000; default 120,000.
 
 The output directory contains `checks.json`, `stdout.txt`, and `stderr.txt`. Reusing a directory replaces the previous bundle. Use different directories if you need history. The checker has a seven-day evidence age limit.

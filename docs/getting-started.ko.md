@@ -4,7 +4,7 @@ harness-lab은 Claude·Codex가 프로젝트의 스펙, ADR(아키텍처 결정 
 
 ## 1. 설치
 
-Node.js 22 이상과 npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다. 빌드된 v0.2.0 릴리스를 설치하므로 저장소 복제나 빌드가 필요하지 않습니다.
+Node.js 22 이상과 npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다. 빌드된 v0.2.0 릴리스를 설치하므로 저장소 복제나 빌드가 필요하지 않습니다. 단, v0.2.0에는 `CLAUDE.md`의 workflow import, `code-reviewer` 에이전트, `harness-review` 스킬, Scope 기반 스펙 선택이 아직 없습니다. 이 기능은 다음 릴리스 전까지 [소스 체크아웃](../README.ko.md#이-저장소-개발과-검증)에서 사용하세요. v0.2.0으로 이미 초기화한 프로젝트는 `init` 대신 `update`로 미리 본 뒤 `update --apply`를 실행합니다.
 
 ```bash
 npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
@@ -69,6 +69,14 @@ manifest, 연결된 ADR·계약, 골든 원칙·제약부터 읽어줘.
 ```
 
 두 진입 문서는 같은 `harness/workflow.md`로 연결됩니다. 판단 우선순위는 스펙 → ADR → 제약 → 골든 원칙 → 일반 맥락입니다. 구조 검사 통과만으로 실제 모델의 지침 준수가 보장되지는 않습니다.
+
+### 독립 코드 리뷰
+
+`init`은 읽기 전용 Claude 리뷰어 `.claude/agents/code-reviewer.md`(Opus 사용)를 만듭니다. [harness-review 스킬](../skills/harness-review/SKILL.md)의 절차대로 스펙·ADR·규칙을 읽고, 변경 파일 전체와 호출부·테스트를 확인한 뒤 Critical~Low 등급, 파일:줄, 실패 시나리오, 수정 제안, 완료 조건 충족표, 판정을 보고합니다. Codex에서는 별도 에이전트에서 이 스킬을 실행하세요. workflow와 harness-develop은 완료 선언 전에 이 리뷰를 필수로 요구하며, Critical·High 지적은 고친 뒤 재리뷰하거나 근거를 남겨야 합니다.
+
+```text
+code-reviewer 에이전트로 작업 트리 변경을 harness/specs/my-feature.md 기준으로 리뷰해줘.
+```
 
 ### 요구사항에서 멀티에이전트 개발까지
 

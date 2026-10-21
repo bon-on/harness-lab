@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
-type Status = 'create' | 'update' | 'unchanged' | 'modified' | 'unmanaged' | 'deleted' | 'retired';
+type Status = 'create' | 'update' | 'unchanged' | 'modified' | 'unmanaged' | 'deleted' | 'retired' | 'skipped';
 type State = { schemaVersion: 1; version: string; files: Record<string, string> };
 type Change = { path: string; before: string | null; after: string | null };
 type Transaction = { schemaVersion: 1; id: string; beforeState: string | null; afterState: string; changes: Change[] };
@@ -58,13 +58,22 @@ function parseState(raw: string | null): State | null {
   }
   return state as State;
 }
-function preflight(root: string, allowed: Set<string>): void {
+// Optional kit files whose path includes a symlink are skipped instead of refusing the whole kit.
+function linked(root: string, relative: string): boolean {
+  let current = root;
+  for (const part of relative.split('/')) {
+    current = path.join(current, part);
+    try { if (fs.lstatSync(current).isSymbolicLink()) return true; } catch (e) { if (['ENOENT', 'ENOTDIR'].includes((e as NodeJS.ErrnoException).code ?? '')) return false; throw e; }
+  }
+  return false;
+}
+function preflight(root: string, allowed: Set<string>, optional: Set<string> = new Set()): void {
   safe(root, '', true);
   safe(root, META, true);
   safe(root, `${META}/backups`, true);
   safe(root, `${META}/lock`);
   safe(root, `${META}/state.json`);
-  for (const p of allowed) { validPath(p); safe(root, p); }
+  for (const p of allowed) { validPath(p); if (!(optional.has(p) && linked(root, p))) safe(root, p); }
 }
 function write(root: string, relative: string, content: string | null): void {
   const target = safe(root, relative);
@@ -92,19 +101,21 @@ function mutate(root: string, changes: Change[], beforeState: string | null, aft
     throw new Error(`Mutation failed: ${String(error)}. ${failures.length ? `Recovery incomplete; inspect backup and paths: ${failures.join(', ')}` : 'Original file contents and state restored.'}`);
   }
 }
-export function installKit(rootInput: string, files: Record<string, string>, options: { version: string; mode: 'init' | 'update'; apply: boolean }): KitResult {
+export function installKit(rootInput: string, files: Record<string, string>, options: { version: string; mode: 'init' | 'update'; apply: boolean; optional?: string[] }): KitResult {
   const root = resolveKitRoot(rootInput);
   const allowed = new Set(Object.keys(files));
+  const optional = new Set(options.optional ?? []);
   if (!options.version || !['init', 'update'].includes(options.mode)) throw new Error('Invalid install options');
   for (const content of Object.values(files)) if (typeof content !== 'string') throw new Error('Template contents must be strings');
   const plan = () => {
-    preflight(root, allowed);
+    preflight(root, allowed, optional);
     const raw = read(root, `${META}/state.json`);
     const state = parseState(raw);
     const next: State = { schemaVersion: 1, version: options.version, files: Object.assign(Object.create(null), state?.files) };
     const entries: KitResult['entries'] = [];
     const changes: Change[] = [];
     for (const [p, content] of Object.entries(files)) {
+      if (optional.has(p) && linked(root, p)) { entries.push({ path: p, status: 'skipped' }); continue; }
       const current = read(root, p);
       const baseline = state && Object.hasOwn(state.files, p) ? state.files[p] : undefined;
       let status: Status;
@@ -132,12 +143,13 @@ export function installKit(rootInput: string, files: Record<string, string>, opt
     return { version: options.version, applied: true, entries, transactionId: id };
   });
 }
-export function rollbackKit(rootInput: string, id: string, allowedPaths: string[], apply: boolean): KitResult {
+export function rollbackKit(rootInput: string, id: string, allowedPaths: string[], apply: boolean, optionalPaths: string[] = []): KitResult {
   if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error('Invalid transaction ID');
   const root = resolveKitRoot(rootInput);
   const allowed = new Set(allowedPaths);
+  const optional = new Set(optionalPaths);
   const plan = () => {
-    preflight(root, allowed);
+    preflight(root, allowed, optional);
     const raw = read(root, `${META}/backups/${id}/transaction.json`);
     if (raw === null) throw new Error('Transaction not found');
     const tx: unknown = JSON.parse(raw);

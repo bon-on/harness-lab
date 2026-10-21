@@ -9,7 +9,7 @@ npm ci
 npm test
 ```
 
-Use Node.js 22 or newer. `.claude/skills` is a symlink to `skills/`, so Claude Code in this checkout loads the skills under development. Refresh any globally installed copies (for example `~/.claude/skills/<name>`) yourself after changing a skill; a project skill and a same-named global copy can both appear. Tests build the CLI and exercise it in temporary directories without model calls or external services.
+Use Node.js 22 or newer. `.claude/skills` is a symlink to `skills/`, so Claude Code in this checkout loads the skills under development. Refresh any globally installed copies (for example `~/.claude/skills/<name>`) yourself after changing a skill; a project skill and a same-named global copy can both appear. `.claude/agents/code-reviewer.md` and its `examples/repo-kit` copy are generated from `skills/harness-review/SKILL.md`; after changing the skill, regenerate them with `init repo-kit` into an empty directory and copy the result (tests fail on drift). Tests build the CLI and exercise it in temporary directories without model calls or external services.
 
 ## Change workflow
 

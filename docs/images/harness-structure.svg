@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="600" viewBox="0 0 960 600" role="img" aria-labelledby="t">
+<title id="t">What harness-lab init adds to your project</title>
+<style>
+svg{--bg:#ffffff;--panel:#f6f8fa;--line:#d0d7de;--text:#1f2328;--muted:#59636e;--claude:#b4532a;--harness:#0969da;--ok:#1a7f37;--box:#ffffff}
+@media (prefers-color-scheme: dark){svg{--bg:#0d1117;--panel:#161b22;--line:#30363d;--text:#e6edf3;--muted:#9198a1;--claude:#f0885d;--harness:#4493f8;--ok:#3fb950;--box:#0d1117}}
+.bg{fill:var(--bg)}.panel{fill:var(--panel);stroke:var(--line)}.box{fill:var(--box);stroke:var(--line)}
+text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",Helvetica,Arial,sans-serif;fill:var(--text)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+.h1{font-size:20px;font-weight:600}.h2{font-size:15px;font-weight:600}.sub{font-size:12px;fill:var(--muted)}
+.st{font-size:13.5px;font-weight:600}.tree{fill:var(--muted)}.name{fill:var(--text)}
+.claude{fill:var(--claude)}.harness{fill:var(--harness)}.ok{fill:var(--ok)}
+.dot{stroke:none}.num{font-size:12px;font-weight:700;fill:var(--bg)}.arrow{stroke:var(--line);stroke-width:2}
+</style>
+<rect class="bg" width="960" height="600"/>
+<text class="h1" x="24" y="40">What harness-lab init adds to your project</text>
+<rect class="panel" x="24" y="64" width="470" height="482" rx="10"/>
+<text class="h2" x="44" y="94">Project layout</text>
+<text class="mono" x="44" y="126"><tspan class="tree"></tspan><tspan class="name">your-project/</tspan></text>
+<text class="mono" x="44" y="152"><tspan class="tree">├─ </tspan><tspan class="claude">CLAUDE.md</tspan></text>
+<text class="sub" x="250" y="152">Claude entry · imports the workflow</text>
+<text class="mono" x="44" y="178"><tspan class="tree">├─ </tspan><tspan class="name">AGENTS.md</tspan></text>
+<text class="sub" x="250" y="178">Codex entry · same workflow</text>
+<text class="mono" x="44" y="204"><tspan class="tree">├─ </tspan><tspan class="name">.claude/agents/</tspan></text>
+<text class="mono" x="44" y="230"><tspan class="tree">│  └─ </tspan><tspan class="claude">code-reviewer.md</tspan></text>
+<text class="sub" x="250" y="230">read-only reviewer (Opus)</text>
+<text class="mono" x="44" y="256"><tspan class="tree">├─ </tspan><tspan class="name">harness/</tspan></text>
+<text class="mono" x="44" y="282"><tspan class="tree">│  ├─ </tspan><tspan class="harness">workflow.md</tspan></text>
+<text class="sub" x="250" y="282">shared workflow for every agent</text>
+<text class="mono" x="44" y="308"><tspan class="tree">│  ├─ </tspan><tspan class="name">manifest.json</tspan></text>
+<text class="sub" x="250" y="308">paths, packs, policy mode</text>
+<text class="mono" x="44" y="334"><tspan class="tree">│  ├─ </tspan><tspan class="name">specs/</tspan></text>
+<text class="sub" x="250" y="334">scope + acceptance criteria</text>
+<text class="mono" x="44" y="360"><tspan class="tree">│  ├─ </tspan><tspan class="name">adrs/</tspan></text>
+<text class="sub" x="250" y="360">decisions + consequences</text>
+<text class="mono" x="44" y="386"><tspan class="tree">│  ├─ </tspan><tspan class="name">contracts/</tspan></text>
+<text class="sub" x="250" y="386">done criteria + evidence</text>
+<text class="mono" x="44" y="412"><tspan class="tree">│  ├─ </tspan><tspan class="name">rules/</tspan></text>
+<text class="sub" x="250" y="412">constraints, golden rules</text>
+<text class="mono" x="44" y="438"><tspan class="tree">│  ├─ </tspan><tspan class="name">templates/</tspan></text>
+<text class="sub" x="250" y="438">spec / ADR / contract</text>
+<text class="mono" x="44" y="464"><tspan class="tree">│  └─ </tspan><tspan class="name">maintenance.json</tspan></text>
+<text class="sub" x="250" y="464">30-day review record</text>
+<text class="mono" x="44" y="490"><tspan class="tree">├─ </tspan><tspan class="name">reports/</tspan></text>
+<text class="sub" x="250" y="490">example reports</text>
+<text class="mono" x="44" y="516"><tspan class="tree">└─ </tspan><tspan class="name">.harness-lab/</tspan></text>
+<text class="sub" x="250" y="516">update state + backups</text>
+<rect class="panel" x="514" y="64" width="422" height="482" rx="10"/>
+<text class="h2" x="534" y="94">How an agent works in it</text>
+<rect class="box" x="530" y="110" width="390" height="48" rx="8"/>
+<circle class="dot claude" cx="556" cy="134.0" r="12"/>
+<text class="num" x="556" y="138.0" text-anchor="middle">1</text>
+<text class="st" x="580" y="130">Request</text>
+<text class="sub" x="580" y="147">Claude leads · Codex follows the same files</text>
+<line class="arrow" x1="556" y1="158" x2="556" y2="170"/>
+<rect class="box" x="530" y="170" width="390" height="48" rx="8"/>
+<circle class="dot tree" cx="556" cy="194.0" r="12"/>
+<text class="num" x="556" y="198.0" text-anchor="middle">2</text>
+<text class="st" x="580" y="190">Load the entry point</text>
+<text class="sub" x="580" y="207">CLAUDE.md @imports harness/workflow.md</text>
+<line class="arrow" x1="556" y1="218" x2="556" y2="230"/>
+<rect class="box" x="530" y="230" width="390" height="48" rx="8"/>
+<circle class="dot harness" cx="556" cy="254.0" r="12"/>
+<text class="num" x="556" y="258.0" text-anchor="middle">3</text>
+<text class="st" x="580" y="250">Select the governing spec</text>
+<text class="sub" x="580" y="267">match Scope · read ADRs, contracts, rules</text>
+<line class="arrow" x1="556" y1="278" x2="556" y2="290"/>
+<rect class="box" x="530" y="290" width="390" height="48" rx="8"/>
+<circle class="dot tree" cx="556" cy="314.0" r="12"/>
+<text class="num" x="556" y="318.0" text-anchor="middle">4</text>
+<text class="st" x="580" y="310">Plan and implement</text>
+<text class="sub" x="580" y="327">acceptance criteria → checks · file ownership</text>
+<line class="arrow" x1="556" y1="338" x2="556" y2="350"/>
+<rect class="box" x="530" y="350" width="390" height="48" rx="8"/>
+<circle class="dot ok" cx="556" cy="374.0" r="12"/>
+<text class="num" x="556" y="378.0" text-anchor="middle">5</text>
+<text class="st" x="580" y="370">Verify with real commands</text>
+<text class="sub" x="580" y="387">harness-lab verify → argv, exit code, hashes</text>
+<line class="arrow" x1="556" y1="398" x2="556" y2="410"/>
+<rect class="box" x="530" y="410" width="390" height="48" rx="8"/>
+<circle class="dot claude" cx="556" cy="434.0" r="12"/>
+<text class="num" x="556" y="438.0" text-anchor="middle">6</text>
+<text class="st" x="580" y="430">Independent review</text>
+<text class="sub" x="580" y="447">code-reviewer · fix or justify Critical/High</text>
+<line class="arrow" x1="556" y1="458" x2="556" y2="470"/>
+<rect class="box" x="530" y="470" width="390" height="48" rx="8"/>
+<circle class="dot ok" cx="556" cy="494.0" r="12"/>
+<text class="num" x="556" y="498.0" text-anchor="middle">7</text>
+<text class="st" x="580" y="490">Check and report</text>
+<text class="sub" x="580" y="507">check-evidence · audit · response contract</text>
+<text class="sub" x="24" y="576">Files are created only when missing. Existing files are preserved, and updates are previewed before they apply.</text>
+</svg>

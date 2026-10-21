@@ -12,6 +12,8 @@ and verify the integrated result against acceptance criteria.
 
 The coordinator records a compact requirement-to-check map and task dependencies. Each worker gets a project root, resolvable policy paths, one exclusive write scope, agreed interfaces, acceptance criteria and required checks. Shared files have one owner. Integration and final evidence belong to the coordinator.
 
+Before completion, an independent read-only reviewer (the `code-reviewer` agent in Claude, or an agent running [harness-review](../skills/harness-review/SKILL.md)) reviews the integrated change. The coordinator fixes and re-reviews Critical and High findings, or justifies them, and still owns the acceptance decision.
+
 Parallelism is useful when tasks can proceed independently. A small coupled change, unavailable tool capacity, or a host restriction may require sequential execution. The agent must state that fallback rather than claim delegation occurred. Git worktrees are optional; non-Git projects need file ownership and preserved originals or isolated copies.
 
 ## Adoption lessons

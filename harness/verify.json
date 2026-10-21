@@ -13,12 +13,14 @@
     "AGENTS.md",
     "CLAUDE.md",
     "README.md",
+    "README.ko.md",
     "CONTRIBUTING.md",
     "LICENSE",
     "docs",
     ".github",
     "skills",
-    "bin"
+    "bin",
+    ".claude/agents"
   ],
   "timeoutMs": 120000
 }

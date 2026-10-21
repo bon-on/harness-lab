@@ -1,10 +1,14 @@
 # harness-lab
 
-**Give Claude and Codex a project-specific workflow they can read, follow, and verify.**
+**English** · [한국어](README.ko.md)
 
-harness-lab is a local TypeScript CLI that adds feature specs, architectural decision records (ADRs), golden rules, and verification evidence to a repository. Keep decisions in Git, make acceptance criteria explicit, and review the harness regularly so instructions stay useful and small.
+**Give Claude Code a project-specific workflow it can read, follow, and verify, and keep Codex on the same rules.**
 
-[한국어 시작 가이드](docs/getting-started.ko.md) · [Command reference](docs/commands.md) · [Contributing](CONTRIBUTING.md)
+harness-lab is a local TypeScript CLI that adds feature specs, architectural decision records (ADRs), golden rules, an independent code reviewer, and verification evidence to a repository. Claude Code is the primary agent; Codex follows the same repository-local workflow. Keep decisions in Git, make acceptance criteria explicit, and review the harness regularly so instructions stay useful and small.
+
+![Files harness-lab init adds and how an agent works with them](docs/images/harness-structure.svg)
+
+[Korean getting started](docs/getting-started.ko.md) · [Command reference](docs/commands.md) · [Contributing](CONTRIBUTING.md)
 
 > Early-stage toolkit. Local CLI behavior is tested; live Claude/Codex instruction compliance is not yet benchmarked. No model API key is required. This tool does not intercept every agent command.
 
@@ -21,6 +25,8 @@ harness-lab --help
 ```
 
 The package is distributed through GitHub Releases, **not the npm registry**. Bare `npx @bon-on/harness-lab` is not an installation route. For a project-local installation or contributor setup, see [installation and updates](docs/installation-updates.md).
+
+> **Unreleased changes.** v0.2.0 generates a `CLAUDE.md` that links the workflow instead of importing it, and it does not include the `code-reviewer` agent, the `harness-review` skill, or scope-based spec selection described below. Until the next release, use them from a source checkout: build it as in [Develop and verify this repository](#develop-and-verify-this-repository), then run `node <checkout>/bin/harness-lab.mjs init` in a new project. A project already initialized with v0.2.0 should run `update` to preview and `update --apply` instead; `init` keeps existing files.
 
 ## Apply it to your project
 
@@ -60,9 +66,9 @@ harness-lab rollback <transaction-id> --apply  # restore if nothing changed sinc
 
 Updates preserve existing unmanaged files and local edits or deletions. Only tool-created files are tracked. Projects initialized before tracking was introduced are not automatically adopted. Review the plan and handle preserved files manually. See [update ownership, backups, and recovery](docs/installation-updates.md).
 
-## Use with Claude or Codex
+## Use with Claude Code
 
-Open your target project in your agent. `AGENTS.md` and `CLAUDE.md` both direct it to the same repository-local `harness/workflow.md`. A globally installed skill is not required.
+Open your target project in Claude Code. `CLAUDE.md` imports `harness/workflow.md` with `@harness/workflow.md`, so the workflow loads at session start. `.claude/agents/code-reviewer.md` adds the independent reviewer. A globally installed skill is not required.
 
 Example request:
 
@@ -74,7 +80,7 @@ Report the references used, applied packs, constraints, evidence, and unresolved
 Do not claim completion when required checks fail.
 ```
 
-Source priority is **feature spec → related ADR → constraints → golden rules → general context**. Conflicting decisions must be surfaced rather than silently replaced. An optional [harness-apply skill](skills/harness-apply/SKILL.md) and [reference](skills/harness-apply/references/repo-kit.md) are included for environments that support skill installation.
+Source priority is **feature spec → related ADR → constraints → golden rules → general context**. Conflicting decisions must be surfaced rather than silently replaced. The agent selects the spec whose Scope covers the request; `maintained` specs remain regression baselines. An optional [harness-apply skill](skills/harness-apply/SKILL.md) and [reference](skills/harness-apply/references/repo-kit.md) are included for adoption.
 
 ## Develop from requirements with multiple agents
 
@@ -90,7 +96,27 @@ See the [workflow and adoption lessons](docs/multi-agent-development.md) for own
 
 The skill uses the host's available agent tools. It does not launch agents by itself or require a new service. If delegation is unavailable or the task is tightly coupled, it explains the single-agent fallback. Projects without Git use explicit write ownership and isolated copies where needed; worktrees are not assumed.
 
-The CLI package includes skill files as assets; installing or upgrading it does not install or update skills in your agent host. To try a skill without installing it, tell the agent to read the linked `SKILL.md` from your tool checkout. To install it, copy its directory into your environment's skill directory; keep a single maintained version when sharing it across agents. `harness-apply` handles adoption; `harness-develop` handles implementation. Neither grants permission to run production operations.
+The CLI package includes skill files as assets; installing or upgrading it does not install or update skills in your agent host. To try a skill without installing it, tell the agent to read the linked `SKILL.md` from your tool checkout. To install it for Claude Code, copy its directory into `~/.claude/skills/` (all projects) or `.claude/skills/` (one project); for Codex, use its skill directory. Keep a single maintained version when sharing it across agents. `harness-apply` handles adoption, `harness-develop` handles implementation, and `harness-review` handles independent review. None grants permission to run production operations.
+
+## Review changes independently
+
+`init` creates `.claude/agents/code-reviewer.md`, a read-only Claude reviewer that runs on Opus. It follows the [harness-review skill](skills/harness-review/SKILL.md): it reads the governing spec, ADRs and rules, reads changed files in full with their callers and tests, and reports verified findings ranked Critical to Low with file:line, a failure scenario, a suggested fix, acceptance coverage and a verdict. In Codex or other hosts, run the skill in a separate agent.
+
+The shared workflow and harness-develop require this review before implementation is declared complete. Critical and High findings must be fixed and re-reviewed or justified. You can also ask for it directly:
+
+```text
+Use the code-reviewer agent to review my working-tree changes against harness/specs/my-feature.md.
+```
+
+The agent file is generated from the skill. `update` refreshes an unmodified generated copy and preserves unmanaged or locally edited ones. If `.claude` or `.claude/agents` is a symlink, only this file is skipped. Its Bash access means read-only behavior depends on the instructions, not on a tool restriction.
+
+## Codex compatibility
+
+Codex reads `AGENTS.md`, which points to the same `harness/workflow.md`. The rules, specs, and verification commands are shared; only these differ:
+
+- `AGENTS.md` references the workflow instead of importing it, because Codex has no import syntax.
+- Codex does not read `.claude/agents/`. For the required review, run the [harness-review skill](skills/harness-review/SKILL.md) in a separate Codex agent.
+- Install skills into Codex's own skill directory if you want them available by name.
 
 ## Verify actual commands
 
@@ -145,10 +171,11 @@ Missing or malformed manifests fail in every mode. Audits run when invoked; the 
 | `src/` | CLI, stack detection, static audit, command evidence |
 | `test/` | CLI regression tests with isolated temporary projects |
 | `harness/` | This project's specs, ADRs, rules, and verification config |
+| `skills/` | `harness-apply`, `harness-develop`, and `harness-review` skills |
+| `.claude/` | Generated `code-reviewer` agent and a `skills` link for local development |
 | `examples/repo-kit/` | Example project artifacts; narrative evidence is illustrative |
 | `examples/detect/` | Stack detection fixtures |
-| `skills/harness-apply/` | Optional skill instructions |
-| `docs/` | Usage and command reference |
+| `docs/` | Usage, command reference, and the structure diagram |
 
 ## Develop and verify this repository
 

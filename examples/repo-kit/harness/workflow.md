@@ -14,6 +14,7 @@ Startup sequence:
 
 Development routing:
 - For implementation requests, use the available `harness-develop` skill or follow the same core workflow: map requirements to checks, assign independent tasks with exclusive file ownership and explicit dependencies, then integrate and verify as coordinator. State why when using a single-agent fallback.
+- Before claiming implementation complete, obtain an independent read-only review: the `code-reviewer` agent in Claude, or a separate agent following the `harness-review` skill elsewhere. Fix and re-review Critical and High findings, or justify them in the report. State why when review is skipped for a trivial change.
 - Use the host's available agent tools. Do not assume Git worktrees or a particular orchestration service exists.
 
 Response contract:

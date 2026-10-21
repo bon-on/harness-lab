@@ -1,14 +1,16 @@
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, lstatSync, openSync, closeSync } from 'node:fs';
-import { resolve, relative, dirname, isAbsolute, join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, lstatSync, openSync, closeSync, realpathSync, renameSync, rmSync } from 'node:fs';
+import { resolve, relative, dirname, isAbsolute, join, sep, basename } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 type Config = { command: string[]; inputs: string[]; timeoutMs?: number };
 const digest = (data: Buffer | string) => createHash('sha256').update(data).digest('hex');
+// A relative path leaves its base only through a whole `..` segment; names such as `..ev` stay inside.
+const escapes = (rel: string) => rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../') || isAbsolute(rel);
 function inside(root: string, name: string) {
   const target = resolve(root, name);
   const rel = relative(root, target);
-  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`Unsafe path: ${name}`);
+  if (!rel || escapes(rel)) throw new Error(`Unsafe path: ${name}`);
   let current = root;
   for (const part of rel.split(/[\\/]/)) {
     current = join(current, part);
@@ -28,6 +30,27 @@ export function snapshot(root: string, inputs: string[]) {
   if (!Object.keys(files).length) throw new Error('No source files in scope');
   return files;
 }
+const evidenceFiles = ['stdout.txt', 'stderr.txt', 'checks.json'];
+const overlaps = (a: string, b: string) => [relative(a, b), relative(b, a)].some(rel => !escapes(rel));
+// Resolve aliases (symlinks and letter case on case-insensitive disks) in the deepest existing ancestor
+// so overlap is known before any directory is created.
+function realTarget(path: string): string {
+  try { return realpathSync.native(path); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(path) === path) throw error;
+    return join(realTarget(dirname(path)), basename(path));
+  }
+}
+// Evidence files are written to fresh temporary files and renamed into place, so an existing link is replaced, never followed.
+function assertReplaceable(output: string) {
+  for (const name of evidenceFiles) {
+    let stat;
+    try { stat = lstatSync(join(output, name)); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
+    if (stat.isSymbolicLink()) throw new Error(`Symlink not allowed in evidence output: ${name}`);
+    if (!stat.isFile()) throw new Error(`Unexpected file type in evidence output: ${name}`);
+    if (stat.nlink > 1) throw new Error(`Hardlinked file not allowed in evidence output: ${name}`);
+  }
+}
+const temporary = (output: string, name: string) => join(output, `.${name}.${randomUUID()}.tmp`);
 export function collectEvidence(rootInput: string, configInput: string, outputInput: string) {
   const root = resolve(rootInput);
   const config: Config = JSON.parse(readFileSync(configInput, 'utf8'));
@@ -36,14 +59,24 @@ export function collectEvidence(rootInput: string, configInput: string, outputIn
   if (!Number.isInteger(timeout) || timeout < 1 || timeout > 3600000) throw new Error('timeoutMs must be 1..3600000');
   const before = snapshot(root, config.inputs);
   const output = resolve(outputInput);
-  if (config.inputs.some(input => { const rel = relative(resolve(root, input), output); return !rel || (!rel.startsWith('..') && !isAbsolute(rel)); })) throw new Error('Evidence output must be outside input scope');
+  const realInputs = config.inputs.map(input => realpathSync.native(resolve(root, input)));
+  if (realInputs.some(input => overlaps(input, realTarget(output)))) throw new Error('Evidence output must be outside input scope');
   mkdirSync(output, { recursive: true });
-  const stdout = openSync(join(output, 'stdout.txt'), 'w');
-  const stderr = openSync(join(output, 'stderr.txt'), 'w');
+  const realOutput = realpathSync.native(output);
+  if (realInputs.some(input => overlaps(input, realOutput))) throw new Error('Evidence output must be outside input scope');
+  assertReplaceable(realOutput);
+  const logs = { 'stdout.txt': temporary(realOutput, 'stdout.txt'), 'stderr.txt': temporary(realOutput, 'stderr.txt') };
   const startedAt = new Date().toISOString();
   let result;
-  try { result = spawnSync(config.command[0], config.command.slice(1), { cwd: root, shell: false, timeout, killSignal: 'SIGKILL', stdio: ['ignore', stdout, stderr] }); }
-  finally { closeSync(stdout); closeSync(stderr); }
+  try {
+    const stdout = openSync(logs['stdout.txt'], 'wx');
+    const stderr = openSync(logs['stderr.txt'], 'wx');
+    try { result = spawnSync(config.command[0], config.command.slice(1), { cwd: root, shell: false, timeout, killSignal: 'SIGKILL', stdio: ['ignore', stdout, stderr] }); }
+    finally { closeSync(stdout); closeSync(stderr); }
+    for (const [name, file] of Object.entries(logs)) renameSync(file, join(realOutput, name));
+  } finally {
+    for (const file of Object.values(logs)) rmSync(file, { force: true });
+  }
   let after = {};
   let snapshotError: string | null = null;
   try { after = snapshot(root, config.inputs); } catch (error) { snapshotError = String(error); }
@@ -54,10 +87,14 @@ export function collectEvidence(rootInput: string, configInput: string, outputIn
     nodeVersion: process.version, platform: process.platform, arch: process.arch,
     exitCode: result.status, signal: result.signal, error: result.error?.message ?? snapshotError,
     before, after, unchanged, passed: result.status === 0 && !result.error && !snapshotError && unchanged,
-    logs: ['stdout.txt', 'stderr.txt'].map(file => ({ file, sha256: digest(readFileSync(join(output, file))) })),
+    logs: ['stdout.txt', 'stderr.txt'].map(file => ({ file, sha256: digest(readFileSync(join(realOutput, file))) })),
     notVerified: ['Meaningfulness of test assertions', 'Factual accuracy', 'Independent review', 'Production behavior'],
   };
-  writeFileSync(join(output, 'checks.json'), JSON.stringify(evidence, null, 2) + '\n');
+  const checks = temporary(realOutput, 'checks.json');
+  try {
+    writeFileSync(checks, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
+    renameSync(checks, join(realOutput, 'checks.json'));
+  } finally { rmSync(checks, { force: true }); }
   return evidence;
 }
 export function checkEvidence(filename: string, rootInput: string, maxAgeMs = 7 * 86400000) {

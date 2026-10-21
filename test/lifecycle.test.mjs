@@ -167,3 +167,29 @@ test('retired templates retain provenance and user content across newer releases
  rollbackKit(root,result.transactionId,['a'],true);
  assert.equal(read(root,'.harness-lab/state.json'),before);assert.equal(read(root,'retired'),'keep');
 });
+test('optional paths behind symlinks are skipped while required paths still refuse links', t => {
+  const root = fixtures(t);
+  const outside = fixtures(t);
+  fs.symlinkSync(outside, path.join(root, 'shared'));
+  const result = installKit(root, { a: 'x', 'shared/b': 'y' }, { mode: 'init', apply: true, version: '1', optional: ['shared/b'] });
+  assert.deepEqual(statuses(result), { a: 'create', 'shared/b': 'skipped' });
+  assert.equal(read(root, 'a'), 'x');
+  assert.deepEqual(fs.readdirSync(outside), []);
+  assert.ok(!Object.hasOwn(JSON.parse(read(root, '.harness-lab/state.json')).files, 'shared/b'));
+  assert.throws(() => install(root, { a: 'x', 'shared/b': 'y' }, 'update'), /Symlink/);
+  fs.symlinkSync(path.join(outside, 'target'), path.join(root, 'c'));
+  const file = installKit(root, { a: 'x', c: 'z' }, { mode: 'update', apply: true, version: '2', optional: ['c'] });
+  assert.equal(statuses(file).c, 'skipped');
+  assert.equal(fs.existsSync(path.join(outside, 'target')), false);
+});
+test('rollback refuses a recorded optional change once its path becomes a symlink', t => {
+  const root = fixtures(t);
+  const outside = fixtures(t);
+  const result = installKit(root, { a: 'x', 'shared/b': 'y' }, { mode: 'init', apply: true, version: '1', optional: ['shared/b'] });
+  fs.renameSync(path.join(root, 'shared/b'), path.join(outside, 'b'));
+  fs.rmdirSync(path.join(root, 'shared'));
+  fs.symlinkSync(outside, path.join(root, 'shared'));
+  assert.throws(() => rollbackKit(root, result.transactionId, ['a', 'shared/b'], true, ['shared/b']), /Symlink/);
+  assert.equal(read(root, 'a'), 'x');
+  assert.equal(fs.readFileSync(path.join(outside, 'b'), 'utf8'), 'y');
+});

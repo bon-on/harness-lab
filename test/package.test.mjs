@@ -28,10 +28,10 @@ test('release tarball installs offline and runs independently without developmen
   ], repository, join(temporary, 'pack-cache')));
   const files = packed.files.map(file => file.path);
   for (const expected of ['package.json', 'dist/index.js', 'dist/evidence.js', 'bin/harness-lab.mjs',
-    'skills/harness-apply/SKILL.md', 'skills/harness-develop/SKILL.md', 'README.md', 'LICENSE']) {
+    'skills/harness-apply/SKILL.md', 'skills/harness-develop/SKILL.md', 'skills/harness-review/SKILL.md', 'README.md', 'LICENSE']) {
     assert.ok(files.includes(expected), `release is missing ${expected}`);
   }
-  assert.ok(files.every(file => /^(dist\/|bin\/|skills\/|package\.json$|README\.md$|LICENSE$)/.test(file)),
+  assert.ok(files.every(file => /^(dist\/|bin\/|skills\/|package\.json$|README(\.ko)?\.md$|LICENSE$)/.test(file)),
     `unexpected release files: ${files.join(', ')}`);
   assert.equal(existsSync(cache), false, 'installation must start with a fresh cache');
 
@@ -59,6 +59,7 @@ test('release tarball installs offline and runs independently without developmen
   const executable = join(prefix, 'node_modules', '.bin', 'harness-lab');
   const initialized = JSON.parse(execute(executable, ['init', '--format', 'json']));
   assert.equal(initialized.applied, true);
+  assert.match(readFileSync(join(consumer, '.claude/agents/code-reviewer.md'), 'utf8'), /# Harness Review/);
   const doctor = JSON.parse(execute(executable, ['doctor', '--format', 'json']));
   assert.equal(doctor.managed, true);
   const update = JSON.parse(execute(executable, ['update', '--format', 'json']));

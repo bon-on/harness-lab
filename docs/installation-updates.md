@@ -36,7 +36,7 @@ harness-lab init
 harness-lab doctor
 ```
 
-The preview does not write files. Initialization creates missing files and preserves existing ones. The selected repository root is resolved to its actual filesystem location before planning; the CLI reports that path. Symlinks inside managed paths and hardlinked files are rejected. Customize the generated rules, specs and ADRs, and create a project-specific verification config using the [getting-started guide](getting-started.ko.md). If existing agent entry files were preserved, link them to `harness/workflow.md` manually.
+The preview does not write files. Initialization creates missing files and preserves existing ones. The selected repository root is resolved to its actual filesystem location before planning; the CLI reports that path. Symlinks inside managed paths and hardlinked files are rejected, except for the optional files listed in the ownership table below. Customize the generated rules, specs and ADRs, and create a project-specific verification config using the [getting-started guide](getting-started.ko.md). If existing agent entry files were preserved, link them to `harness/workflow.md` manually.
 
 Commit `.harness-lab/state.json` alongside project policy. This file records which files the tool created and their baseline hashes. Add these local artifacts to your project's `.gitignore` yourself:
 
@@ -69,6 +69,7 @@ harness-lab update --apply
 | Tracked file deleted locally | Preserve the deletion and report it |
 | Existing file without tracking provenance | Preserve it as unmanaged |
 | Previously tracked template removed from this release | Preserve the file and its provenance as retired |
+| Optional file (`.claude/agents/code-reviewer.md`, not in v0.2.0) that is a symlink or sits under a symlinked directory | `init` and `update` report only that file as skipped. `rollback` tolerates the link unless the transaction recorded that file, in which case rollback is refused. Other paths that include a symlink still refuse the whole operation |
 
 There is no force overwrite or automatic merge. Updating can apply eligible files while preserving other files; review the complete plan. A preserved file may need a manual comparison with the installed template to incorporate useful improvements. Changing policy for your project is expected and should not be discarded to make a template update pass.
 

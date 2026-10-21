@@ -19,6 +19,7 @@ Document presence and mock scores do not prove execution success.
 - Critical audit findings return nonzero except in advisory mode.
 - Collect argv, timestamps, exit status, output hashes and source hashes without a shell.
 - Check failed commands, changed source, missing or tampered logs and evidence age.
+- Evidence output never writes through symlinks or hardlinks and never overlaps input scope, including through path aliases.
 - Label mock evaluation distinctly from executed regression evidence.
 - CLI tests cover failures and successes; preserve existing user edits.
 - Generate Codex and Claude entry points that share one repository-local workflow without requiring a globally installed skill.
