@@ -4,30 +4,39 @@ harness-lab은 Claude·Codex가 프로젝트의 스펙, ADR(아키텍처 결정 
 
 ## 1. 설치
 
-Git, Node.js 22 이상, npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다.
+Node.js 22 이상과 npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다. 빌드된 v0.2.0 릴리스를 설치하므로 저장소 복제나 빌드가 필요하지 않습니다.
 
 ```bash
-git clone https://github.com/bon-on/harness-lab.git
-cd harness-lab
-npm ci
-npm run build
-node dist/index.js --help
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
+harness-lab --version
+harness-lab --help
 ```
 
-npm 배포 패키지나 전역 설치 없이 이 체크아웃에서 실행합니다. 모델 API 키도 필요하지 않습니다.
+현재 배포 경로는 GitHub Releases이며 **npm 레지스트리에 공개된 패키지가 아닙니다.** `npx @bon-on/harness-lab`만으로 설치할 수 없습니다. 모델 API 키는 필요하지 않습니다.
+
+전역 설치 대신 기존 npm 프로젝트에 버전을 고정할 수도 있습니다.
+
+```bash
+npm install --save-dev 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
+npx --no-install harness-lab --version
+```
+
+이 경우 아래 명령의 `harness-lab`을 `npx --no-install harness-lab`으로 바꾸세요. CLI 설치는 호스트의 스킬을 자동 설치하거나 갱신하지 않습니다.
 
 ## 2. 기존 프로젝트에 적용
 
-harness-lab 디렉터리에서 실행합니다. 대상 경로는 실제 프로젝트 경로로 바꾸세요.
+대상 프로젝트 디렉터리에서 실행합니다. 다른 디렉터리에서 실행하려면 `init`, `doctor` 뒤에 대상 프로젝트 경로를 전달하세요.
 
 ```bash
-PROJECT_REPO="/absolute/path/to/your-project"
-node dist/index.js detect "$PROJECT_REPO" --format md
-node dist/index.js init repo-kit --output "$PROJECT_REPO"
-node dist/index.js audit "$PROJECT_REPO" --format text
+harness-lab init --dry-run
+harness-lab init
+harness-lab doctor
+harness-lab audit . --format text
 ```
 
-기존 파일은 덮어쓰지 않고 보존 목록을 출력합니다. 이미 `AGENTS.md` 또는 `CLAUDE.md`가 있다면, 그 파일에서 `harness/workflow.md`를 읽도록 직접 연결해야 합니다.
+`--dry-run`은 파일을 쓰지 않고 변경 계획만 보여줍니다. 기존 파일은 덮어쓰지 않고 보존 목록을 출력합니다. 이미 `AGENTS.md` 또는 `CLAUDE.md`가 있다면, 그 파일에서 `harness/workflow.md`를 읽도록 직접 연결해야 합니다.
+
+프로젝트 정책과 `.harness-lab/state.json`은 Git에 함께 기록하세요. `.gitignore`에는 `out/`, `.harness-lab/backups/`, `.harness-lab/lock`을 직접 추가합니다. state는 도구가 생성한 파일의 추적 정보이고, backups는 로컬 복구용 자료입니다.
 
 생성 직후 유지보수 리뷰 경고가 나오는 것은 정상입니다. 파일을 만들었다고 프로젝트 검토까지 끝난 것은 아닙니다.
 
@@ -85,20 +94,39 @@ harness-develop로 다음 요구사항을 구현해줘: <요구사항>
 }
 ```
 
-harness-lab 디렉터리에서 실행합니다.
+대상 프로젝트에서 실행합니다. 기본 설정은 `harness/verify.json`, 기본 출력은 `out/evidence/latest`입니다.
 
 ```bash
-node dist/index.js verify "$PROJECT_REPO" "$PROJECT_REPO/harness/verify.json" \
-  --output "$PROJECT_REPO/out/evidence/latest"
-node dist/index.js check-evidence "$PROJECT_REPO/out/evidence/latest/checks.json" "$PROJECT_REPO"
-node dist/index.js audit "$PROJECT_REPO" --format text
+harness-lab verify
+harness-lab check-evidence out/evidence/latest/checks.json .
+harness-lab audit . --format text
 ```
 
 검증 명령은 대상 프로젝트에서 실행됩니다. 실행 실패·타임아웃·실행 중 소스 변경은 실패 처리하며, 증거 재검사는 로그 손상·소스 불일치·7일 초과 증거도 탐지합니다. 계약의 `evidence_files`에 `out/evidence/latest/checks.json`을 넣으면 audit도 실행 증거를 확인합니다. 일반 Markdown 보고서는 존재 여부만 확인합니다.
 
 `inputs`에 비밀값, 의존성, 빌드 산출물, 증거 디렉터리를 넣지 마세요. 검증 설정은 사용자 권한으로 명령을 실행하므로 신뢰할 수 있는 설정만 사용하고 로그를 공유하기 전에 내용을 확인하세요. 대상 프로젝트의 `.gitignore`에 `out/`을 추가하세요. 0 종료 코드는 테스트 자체가 충분하다는 보장은 아닙니다.
 
-## 6. 주기적으로 가볍게 유지
+## 6. CLI 업그레이드와 프로젝트 업데이트
+
+CLI 자체는 원하는 릴리스의 버전별 tarball URL로 다시 설치합니다. CLI 업그레이드는 프로젝트 파일을 바꾸지 않습니다. 이후 대상 프로젝트에서 템플릿 변경을 따로 검토하세요.
+
+```bash
+harness-lab update              # 읽기 전용 미리보기
+harness-lab update --apply      # 적용 가능한 변경 적용, 로컬 백업 저장
+```
+
+도구가 생성했고 기준 내용 그대로인 파일만 갱신합니다. 사용자가 수정하거나 삭제한 파일, 원래 있던 파일은 보존합니다. 추적 기능 도입 전에 생성한 하네스도 자동으로 관리 대상으로 편입하지 않습니다. 강제 덮어쓰기나 자동 병합은 없으므로 보존된 파일에 필요한 개선은 직접 검토해 반영하세요.
+
+적용 결과의 transaction ID로 되돌리기를 미리 보고 실행할 수 있습니다. 아래 `<transaction-id>`는 실제 ID로 바꾸세요.
+
+```bash
+harness-lab rollback <transaction-id>
+harness-lab rollback <transaction-id> --apply
+```
+
+적용 이후 관련 파일이나 state가 바뀌었다면 되돌리기를 거부하여 새 작업을 보호합니다. 로컬 백업은 Git 이력을 대신하지 않습니다. 자세한 관리 기준과 복구 방법은 [설치·업데이트 안내](installation-updates.md)를 참고하세요.
+
+## 7. 주기적으로 가볍게 유지
 
 30일마다, 반복 실패나 스택 변경 이후에 중복 지침·오래된 결정·사용하지 않는 팩·문서 크기를 검토하세요. 결정 이력은 보존하고 반복 실패에는 회귀 검증을 추가합니다. 검토와 검증을 마친 뒤 `harness/maintenance.json`의 `reviewedAt`에 ISO 시각, `summary`에 실제 검토 내용을 기록합니다.
 
@@ -109,6 +137,7 @@ CLI가 자동 스케줄러를 설치하지는 않습니다. 이 저장소의 [Gi
 ## 더 보기
 
 - [전체 README](../README.md)
+- [설치·업데이트·복구](installation-updates.md)
 - [명령어와 문제 해결](commands.md)
 - [기여 가이드](../CONTRIBUTING.md)
 - [선택적 harness-apply 스킬](../skills/harness-apply/SKILL.md)

@@ -10,53 +10,55 @@ harness-lab is a local TypeScript CLI that adds feature specs, architectural dec
 
 ## Install
 
-Requirements: Git, Node.js 22 or newer, and npm. Commands below use a POSIX shell (macOS/Linux).
+Requirements: Node.js 22 or newer and npm. Commands below use a POSIX shell (macOS/Linux).
+
+Install the built **v0.2.0** release; no source checkout or build is needed:
 
 ```bash
-git clone https://github.com/bon-on/harness-lab.git
-cd harness-lab
-npm ci
-npm run build
-node dist/index.js --help
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
+harness-lab --version
+harness-lab --help
 ```
 
-Use the CLI from this checkout. These instructions do not depend on an npm registry release or a global installation.
-
-## Try it in a temporary project
-
-Run from the harness-lab directory:
-
-```bash
-DEMO_REPO="$(mktemp -d)"
-node dist/index.js init repo-kit --output "$DEMO_REPO"
-node dist/index.js audit "$DEMO_REPO" --format text
-node dist/index.js plan "$DEMO_REPO/harness/specs/feature-harness-apply.md" --format text
-```
-
-The audit reports a pending maintenance review. That is expected: scaffolding files is not a completed project review. Generated specs and narrative reports are examples, not proof that your application works.
+The package is distributed through GitHub Releases, **not the npm registry**. Bare `npx @bon-on/harness-lab` is not an installation route. For a project-local installation or contributor setup, see [installation and updates](docs/installation-updates.md).
 
 ## Apply it to your project
 
-Still in the harness-lab directory, replace the path below with an existing repository:
+Run from your existing project's directory:
 
 ```bash
-PROJECT_REPO="/absolute/path/to/your-project"
-node dist/index.js detect "$PROJECT_REPO" --format md
-node dist/index.js init repo-kit --output "$PROJECT_REPO"
-node dist/index.js audit "$PROJECT_REPO" --format text
+harness-lab init --dry-run
+harness-lab init
+harness-lab doctor
+harness-lab audit . --format text
 ```
 
-Initialization **preserves existing files** and prints skipped paths. If your project already has `AGENTS.md` or `CLAUDE.md`, add a reference to `harness/workflow.md` yourself; skipped instructions are not merged automatically.
+Initialization creates missing files and **preserves existing files**. If your project already has `AGENTS.md` or `CLAUDE.md`, add a reference to `harness/workflow.md` yourself; skipped instructions are not merged automatically. You can pass a project path to `init` or `doctor` instead of changing directories.
+
+A new kit's pending maintenance review is expected: scaffolding is not a completed project review. Generated specs and narrative reports are examples, not proof that your application works.
 
 Before starting real work:
 
-1. Edit `harness/rules/golden-rules.md` and `constraints.md` for your architecture, conventions, and test commands.
+1. Adapt `harness/rules/golden-rules.md` and `constraints.md` to your project.
 2. Review `suggestedPacks` in `harness/manifest.json`. Move approved IDs into `approvedPacks` and encode their guidance in the rules. Recommendations never become policy automatically.
-3. Adapt the generated feature spec, ADR, and contract, or create new ones using `harness/templates/`. Keep IDs and cross-links consistent. Replace sample report references with actual evidence.
+3. Adapt the generated feature spec, ADR, and contract, or create new ones using `harness/templates/`. Keep IDs and cross-links consistent and replace sample evidence.
 4. Create `harness/verify.json` using your project's real verification command (see below).
-5. Commit the agent entry files and harness policy with your project. Keep generated evidence local or in CI artifacts.
+5. Commit the agent entry files, harness policy, and `.harness-lab/state.json`. Add `out/`, `.harness-lab/backups/`, and `.harness-lab/lock` to your project's `.gitignore`.
 
-Built-in recommendations cover Next.js, React, Kotlin Spring, and Kotlin Ktor. Python/FastAPI and dependency-free Node ESM/test-runner signals are also detected without automatically recommending a policy pack. Other stacks can use the same repo kit with manually authored constraints and checks; detection is not universal.
+Built-in recommendations cover Next.js, React, Kotlin Spring, and Kotlin Ktor. Python/FastAPI and dependency-free Node ESM/test-runner signals are also detected without automatically recommending a policy pack. Other stacks can use manually authored constraints and checks.
+
+## Update safely
+
+Upgrading the CLI and updating a project's templates are separate actions. Install a chosen version's release tarball to upgrade the executable; it does not change project files. Then, in the target project:
+
+```bash
+harness-lab update              # read-only preview
+harness-lab update --apply      # apply eligible changes and save a local backup
+harness-lab rollback <transaction-id>          # read-only preview
+harness-lab rollback <transaction-id> --apply  # restore if nothing changed since apply
+```
+
+Updates preserve existing unmanaged files and local edits or deletions. Only tool-created files are tracked. Projects initialized before tracking was introduced are not automatically adopted. Review the plan and handle preserved files manually. See [update ownership, backups, and recovery](docs/installation-updates.md).
 
 ## Use with Claude or Codex
 
@@ -88,7 +90,7 @@ See the [workflow and adoption lessons](docs/multi-agent-development.md) for own
 
 The skill uses the host's available agent tools. It does not launch agents by itself or require a new service. If delegation is unavailable or the task is tightly coupled, it explains the single-agent fallback. Projects without Git use explicit write ownership and isolated copies where needed; worktrees are not assumed.
 
-To try a skill without installing it, tell the agent to read the linked `SKILL.md` from your tool checkout. To install it, copy its directory into your environment's skill directory; keep a single maintained version when sharing it across agents. `harness-apply` handles adoption; `harness-develop` handles implementation. Neither grants permission to run production operations.
+The CLI package includes skill files as assets; installing or upgrading it does not install or update skills in your agent host. To try a skill without installing it, tell the agent to read the linked `SKILL.md` from your tool checkout. To install it, copy its directory into your environment's skill directory; keep a single maintained version when sharing it across agents. `harness-apply` handles adoption; `harness-develop` handles implementation. Neither grants permission to run production operations.
 
 ## Verify actual commands
 
@@ -102,16 +104,15 @@ Create this file in the **target project**, adapting the command and inputs to f
 }
 ```
 
-Save it as `harness/verify.json`. From the harness-lab checkout:
+Save it as `harness/verify.json`. From the target project:
 
 ```bash
-node dist/index.js verify "$PROJECT_REPO" "$PROJECT_REPO/harness/verify.json" \
-  --output "$PROJECT_REPO/out/evidence/latest"
-node dist/index.js check-evidence "$PROJECT_REPO/out/evidence/latest/checks.json" "$PROJECT_REPO"
-node dist/index.js audit "$PROJECT_REPO" --format text
+harness-lab verify
+harness-lab check-evidence out/evidence/latest/checks.json .
+harness-lab audit . --format text
 ```
 
-The command runs in the target repository. Config and output paths are resolved from your shell's working directory, so the examples use absolute paths. `verify` records exit status, timestamps, source hashes, and stdout/stderr hashes. It fails for command errors, timeout, or source changes during execution. `check-evidence` also rejects stale evidence (older than seven days), missing logs, and hash mismatches.
+The command runs in the target repository. By default, `verify` uses the target project's `harness/verify.json` and writes `out/evidence/latest` there. Explicit config and `--output` paths resolve from your shell's working directory. `verify` records exit status, timestamps, source hashes, and stdout/stderr hashes. It fails for command errors, timeout, or source changes during execution. `check-evidence` also rejects stale evidence (older than seven days), missing logs, and hash mismatches.
 
 To make audit validate the bundle, add `out/evidence/latest/checks.json` to the relevant contract's `evidence_files` list. Plain Markdown reports are checked for presence only. Add `out/` to your project's `.gitignore`; this repository already ignores its local output.
 
@@ -152,6 +153,9 @@ Missing or malformed manifests fail in every mode. Audits run when invoked; the 
 ## Develop and verify this repository
 
 ```bash
+git clone https://github.com/bon-on/harness-lab.git
+cd harness-lab
+npm ci
 npm test
 node dist/index.js verify . harness/verify.json --output out/evidence/latest
 node dist/index.js check-evidence out/evidence/latest/checks.json .

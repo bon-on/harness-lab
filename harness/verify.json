@@ -17,7 +17,8 @@
     "LICENSE",
     "docs",
     ".github",
-    "skills"
+    "skills",
+    "bin"
   ],
   "timeoutMs": 120000
 }

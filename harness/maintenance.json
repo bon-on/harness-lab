@@ -1,4 +1,4 @@
 {
-  "reviewedAt": "2026-10-17T22:01:01.782517+00:00",
-  "summary": "Reviewed real-project adoption and requirement-driven delegation. Kept harness-apply for policy adoption and added a focused development skill with conditional bootstrap reference. Corrected generic stack signals and disconnected entry-point checks with regression coverage. Independent forward testing exposed incompatible bootstrap and abbreviated worker paths; updated the skill. No approved packs to prune; project details and raw evidence remain local."
+  "reviewedAt": "2026-10-21T06:39:04.103936+00:00",
+  "summary": "Reviewed installation and update lifecycle. Kept package distribution separate from project template updates, centralized lifecycle logic in its own module, and routed advanced recovery guidance to one document. Preserved local policy, retired templates and provenance; independent review identified hardlink and root-alias handling gaps now covered by regressions. Packed offline installation and 34 CLI/lifecycle tests passed. No approved packs to prune; updates do not expand golden rules with task-specific mechanics."
 }

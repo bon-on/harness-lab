@@ -1,21 +1,35 @@
 # Command reference
 
-Run `npm ci` and `npm run build` in the harness-lab checkout first. All examples invoke `node dist/index.js` from that directory. Use absolute paths when working with another repository.
+Install the [built release](installation-updates.md) first. Examples below use `harness-lab`; `harness` is an alias. From a source checkout, `npm ci` and `npm run build` make `node dist/index.js` equivalent.
 
 | Command | Purpose | Example |
 | --- | --- | --- |
-| `detect <repo>` | Detect stack signals and recommend packs | `node dist/index.js detect examples/detect/nextjs-app --format md` |
-| `init repo-kit --output <repo>` | Create missing harness files; preserve existing files | `node dist/index.js init repo-kit --output /path/to/project` |
-| `audit <repo-or-manifest>` | Check rules, links, evidence, and maintenance | `node dist/index.js audit /path/to/project --format json` |
-| `plan <spec.md>` | Summarize requirements and linked decisions | `node dist/index.js plan /path/to/project/harness/specs/my-feature.md --format text` |
-| `verify <repo> <config.json> --output <dir>` | Run a command and collect execution evidence | `node dist/index.js verify . harness/verify.json --output out/evidence/latest` |
-| `check-evidence <checks.json> <repo>` | Validate stored evidence against current source | `node dist/index.js check-evidence out/evidence/latest/checks.json .` |
-| `init engineering --output <file>` | Generate a legacy evaluation spec | `node dist/index.js init engineering --output /tmp/harness-eval.json` |
-| `run <eval.json>` | Evaluate supplied mock outputs | `node dist/index.js run examples/coding-assistant.json --format json` |
-| `maturity <eval.json>` | Assess declared harness maturity | `node dist/index.js maturity examples/coding-assistant.json` |
-| `report <eval.json>` | Produce a mock evaluation report | `node dist/index.js report examples/coding-assistant.json --format md --output out/mock-report.md` |
+| `--version` | Print installed CLI version | `harness-lab --version` |
+| `detect <repo>` | Detect stack signals and recommend packs | `harness-lab detect . --format md` |
+| `init [repo] [--dry-run]` | Create missing harness files; default repo is current directory | `harness-lab init --dry-run` |
+| `update [repo] [--apply]` | Preview template changes; apply explicitly | `harness-lab update --apply` |
+| `rollback <transaction-id> [repo] [--apply]` | Preview or apply a guarded restore | `harness-lab rollback <transaction-id> --apply` |
+| `doctor [repo]` | Read-only project diagnostics; default repo is current directory | `harness-lab doctor` |
+| `audit <repo-or-manifest>` | Check rules, links, evidence, and maintenance | `harness-lab audit . --format json` |
+| `plan <spec.md>` | Summarize requirements and linked decisions | `harness-lab plan harness/specs/my-feature.md --format text` |
+| `verify [repo] [config.json]` | Run a command and collect execution evidence | `harness-lab verify` |
+| `check-evidence <checks.json> <repo>` | Validate stored evidence against current source | `harness-lab check-evidence out/evidence/latest/checks.json .` |
+| `init repo-kit --output <repo>` | Legacy create-missing-files syntax | `harness-lab init repo-kit --output /path/to/project` |
+| `init engineering --output <file>` | Generate a legacy evaluation spec | `harness-lab init engineering --output /tmp/harness-eval.json` |
+| `run <eval.json>` | Evaluate supplied mock outputs | `harness-lab run examples/coding-assistant.json --format json` |
+| `maturity <eval.json>` | Assess declared harness maturity | `harness-lab maturity examples/coding-assistant.json` |
+| `report <eval.json>` | Produce a mock evaluation report | `harness-lab report examples/coding-assistant.json --format md --output out/mock-report.md` |
 
-Reporting commands accept `--format text`, `json`, or `md`, and optional `--output <file>`. `verify` and `check-evidence` print JSON; `verify --output` names a directory, not a report file. Initialization writes scaffold files. Inspect `--help` for syntax.
+`update` and `rollback` do not write unless `--apply` is present. `init --dry-run` also previews without writing. Read [ownership and recovery rules](installation-updates.md) before applying updates.
+
+`init`, `update`, `rollback`, and `doctor` accept `--format text`, `json`, or `md`. Update, rollback and doctor reject `--output` to keep their previews read-only. Existing report commands (`detect`, `audit`, `plan`, `run`, `maturity`, `report`) also accept these formats and optional `--output <file>`. `verify` and `check-evidence` print JSON. `verify --output` names a directory, not a report file. Inspect `--help` for syntax.
+
+`verify` defaults to the current repository, its `harness/verify.json`, and its `out/evidence/latest` directory. Explicit config and output paths are resolved from your shell's working directory. The legacy invocation remains supported:
+
+```bash
+harness-lab verify /path/to/project /path/to/project/harness/verify.json \
+  --output /path/to/project/out/evidence/latest
+```
 
 ## Verification config
 
@@ -27,7 +41,7 @@ The output directory contains `checks.json`, `stdout.txt`, and `stderr.txt`. Reu
 
 ## Exit codes and automation
 
-`verify` and `check-evidence` return 1 on failure, 0 on success. Audit returns 1 when policy blocks its findings; `advisory` does not bypass malformed input errors. Read the findings even when exit status is 0. The plan command summarizes blockers; do not use it as a substitute for audit or execution checks.
+`verify` and `check-evidence` return 1 on failure, 0 on success. `doctor` returns 1 for missing setup, a mutation lock, or blocking audit findings. A successful update may preserve files requiring manual review; inspect its entries even when exit status is 0. Audit returns 1 when policy blocks its findings; `advisory` does not bypass malformed input errors. Read the findings even when exit status is 0. The plan command summarizes blockers; do not use it as a substitute for audit or execution checks.
 
 Run verification before audit when a contract references generated `checks.json`. CI must regenerate evidence after checkout instead of committing a machine-specific bundle. This repo's workflow runs on pushes, pull requests, manual dispatch, and weekly; maintenance warnings are surfaced in the job summary.
 
@@ -35,6 +49,9 @@ Run verification before audit when a contract references generated `checks.json`
 
 | Symptom | Action |
 | --- | --- |
+| `harness-lab` not found | Check the npm global bin directory is on your PATH, or use a project-local installation with `npx --no-install harness-lab` |
+| Update preserves an existing file | The file is unmanaged or locally changed/deleted; compare and integrate deliberately. Re-running init does not adopt it |
+| Rollback refuses a change | A file or state changed since the update; inspect the transaction backup and preserve newer work |
 | `dist/index.js` not found | Run `npm ci` then `npm run build` in the tool checkout |
 | Existing agent instructions were skipped | Add a reference to `harness/workflow.md` in those files and review integration |
 | Missing manifest | Initialize a repo kit in the correct target path |

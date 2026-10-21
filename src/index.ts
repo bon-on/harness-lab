@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { collectEvidence, checkEvidence } from './evidence.js';
+import { installKit, rollbackKit, resolveKitRoot, type KitResult } from './lifecycle.js';
+
+const toolVersion: string = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 type OutputFormat = 'text' | 'json' | 'md';
 type WorkflowPattern =
@@ -163,6 +166,8 @@ type MaturityAssessmentResult = {
 type CliOptions = {
   format: OutputFormat;
   output?: string;
+  apply?: boolean;
+  dryRun?: boolean;
 };
 
 type EnforcementMode = 'warn-block-critical' | 'strict-block' | 'advisory';
@@ -386,33 +391,34 @@ function renderTemplate(template: string, variables: Record<string, string>) {
 }
 
 function parseArgs(argv: string[]) {
-  const [command, positionalMaybe, ...rest] = argv;
-  const positionals = positionalMaybe ? [positionalMaybe] : [];
+  const [command, ...rest] = argv;
+  const positionals: string[] = [];
   const options: CliOptions = { format: 'text' };
-
-  for (let index = 0; index < rest.length; index += 1) {
+  for (let index = 0; index < rest.length; index++) {
     const value = rest[index];
-    if (value === '--format') {
-      const next = rest[index + 1];
-      if (next === 'text' || next === 'json' || next === 'md') {
-        options.format = next;
-        index += 1;
-        continue;
-      }
-      throw new Error(`Invalid --format value: ${next ?? '(missing)'}`);
-    }
-
-    if (value === '--output') {
-      const next = rest[index + 1];
-      if (!next) throw new Error('Missing value for --output');
-      options.output = next;
-      index += 1;
+    if (value === '--apply' || value === '--dry-run') {
+      if (value === '--apply') options.apply = true;
+      else options.dryRun = true;
       continue;
     }
-
+    if (value === '--format') {
+      const next = rest[++index];
+      if (next !== 'text' && next !== 'json' && next !== 'md') throw new Error(`Invalid --format value: ${next ?? '(missing)'}`);
+      options.format = next;
+      continue;
+    }
+    if (value === '--output') {
+      const next = rest[++index];
+      if (!next || next.startsWith('--')) throw new Error('Missing value for --output');
+      options.output = next;
+      continue;
+    }
+    if (value.startsWith('-')) throw new Error(`Unknown option: ${value}`);
     positionals.push(value);
   }
-
+  if (options.apply && options.dryRun) throw new Error('--apply and --dry-run cannot be combined');
+  if (options.apply && !['update', 'rollback'].includes(command)) throw new Error('--apply is supported only for update and rollback');
+  if (options.dryRun && !['init', 'update', 'rollback'].includes(command)) throw new Error('--dry-run is supported only for init, update and rollback');
   return { command, positionals, options };
 }
 
@@ -1678,8 +1684,8 @@ AI-assisted development is inconsistent because repo rules, ADRs, and task expec
 
 ## Evidence
 - \`npm run build\`
-- \`node dist/index.js audit examples/repo-kit --format md\`
-- \`node dist/index.js plan examples/repo-kit/harness/specs/feature-harness-apply.md --format text\`
+- \`harness-lab audit . --format md\`
+- \`harness-lab plan harness/specs/feature-harness-apply.md --format text\`
 `;
   const sampleAdr = `---
 id: adr-spec-driven-delivery
@@ -1732,8 +1738,8 @@ Create the minimum repo-native harness workflow needed for spec-driven and ADR-a
 
 ## Verification
 - Run \`npm run build\`.
-- Run \`npm run audit\`.
-- Run \`npm run plan\`.
+- Run \`harness-lab audit .\`.
+- Run \`harness-lab plan harness/specs/feature-harness-apply.md\`.
 
 ## Evidence References
 - reports/repo-kit-audit-report.md
@@ -1776,24 +1782,47 @@ Create the minimum repo-native harness workflow needed for spec-driven and ADR-a
   };
 }
 
-function initRepoKit(rootPath: string) {
-  const absoluteRoot = resolve(rootPath);
+function initRepoKit(rootPath: string, apply = true) {
+  const absoluteRoot = resolveKitRoot(rootPath);
   const detection = detectProjectProfiles(absoluteRoot);
-  const files = repoKitFiles(detection);
+  const result = installKit(absoluteRoot, repoKitFiles(detection), { version: toolVersion, mode: 'init', apply });
+  return { absoluteRoot, detection, result };
+}
 
-  const skipped: string[] = [];
-  for (const [relativePath, content] of Object.entries(files)) {
-    const target = join(absoluteRoot, relativePath);
-    mkdirSync(dirname(target), { recursive: true });
-    try {
-      writeFileSync(target, content, { encoding: 'utf-8', flag: 'wx' });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      skipped.push(relativePath);
-    }
+function printKitResult(action: string, root: string, result: KitResult, format: OutputFormat) {
+  if (format === 'json') {
+    console.log(JSON.stringify({ action, root: resolve(root), ...result }, null, 2));
+    return;
   }
+  const title = `${action} in ${resolve(root)}`;
+  console.log(format === 'md' ? `# ${title}\n` : title);
+  console.log(`Tool version: ${toolVersion}; applied: ${result.applied}`);
+  for (const entry of result.entries) console.log(`- ${entry.status}: ${entry.path}`);
+  const preserved = result.entries.filter(entry => ['unmanaged', 'modified', 'deleted', 'retired'].includes(entry.status));
+  if (preserved.length) console.log(`Preserved existing files (review integration): ${preserved.map(entry => entry.path).join(', ')}`);
+  if (result.transactionId) console.log(`Transaction: ${result.transactionId}`);
+}
 
-  return { absoluteRoot, detection, skipped };
+function diagnoseProject(rootInput: string) {
+  const root = resolveKitRoot(rootInput);
+  const manifestPath = join(root, 'harness/manifest.json');
+  if (!existsSync(manifestPath)) return {
+    toolVersion, root, ready: false, managed: false,
+    findings: [{ severity: 'critical', code: 'manifest-missing', message: 'No harness manifest. Run harness-lab init --dry-run, then harness-lab init in the target project.' }],
+    nextSteps: ['Initialize the project harness; customize rules and acceptance criteria before development.'],
+  };
+  const audit = auditRepoHarness(root);
+  const mutationLocked = existsSync(join(root, '.harness-lab/lock'));
+  const update = installKit(root, repoKitFiles(detectProjectProfiles(root)), { version: toolVersion, mode: 'update', apply: false });
+  return {
+    toolVersion, root, ready: !audit.blocked && !mutationLocked, managed: existsSync(join(root, '.harness-lab/state.json')),
+    findings: [...audit.findings, ...(mutationLocked ? [{ severity: 'critical', code: 'mutation-lock-present', message: 'A mutation lock exists. Check for an active update or interrupted process before manually recovering the lock; do not delete an active lock.' }] : [])], update: update.entries,
+    nextSteps: [
+      ...(!existsSync(join(root, 'harness/verify.json')) ? ['Create harness/verify.json with the project verification argv and existing source paths; init does not guess a test command.'] : []),
+      'Review harness-lab update before applying template changes.',
+      'Run project verification, check-evidence and audit after changes; audit warnings still need review.',
+    ],
+  };
 }
 
 function parseFrontmatter(content: string) {
@@ -2494,7 +2523,14 @@ function formatPlanMarkdown(result: PlanResult) {
 }
 
 function printUsage() {
-  console.log(`Usage:
+  console.log(`harness-lab ${toolVersion}
+Usage:
+  harness-lab --version
+  harness-lab init [repo] [--dry-run] [--format text|json|md]
+  harness-lab update [repo] [--apply] [--format text|json|md]
+  harness-lab rollback <transaction-id> [repo] [--apply]
+  harness-lab doctor [repo] [--format text|json|md]
+  harness-lab verify [repo] [config.json] [--output <directory>]
   harness verify <repo> <config.json> --output <directory>
   harness check-evidence <checks.json> <repo>
   harness run <spec.json> [--format text|json|md]
@@ -2510,11 +2546,17 @@ function printUsage() {
 
 function main() {
   try {
-    const { command, positionals, options } = parseArgs(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    if (argv.includes('--help') || argv.includes('-h')) { printUsage(); return; }
+    if (argv.length === 1 && (argv[0] === '--version' || argv[0] === '-v')) { console.log(toolVersion); return; }
+    const { command, positionals, options } = parseArgs(argv);
 
     if (command === 'verify') {
-      if (!positionals[0] || !positionals[1] || !options.output) throw new Error('verify <repo> <config.json> --output <directory>');
-      const evidence = collectEvidence(positionals[0], positionals[1], options.output);
+      if (positionals.length > 2) throw new Error('verify [repo] [config.json] [--output <directory>]');
+      const root = resolve(positionals[0] ?? '.');
+      const config = positionals[1] ?? join(root, 'harness/verify.json');
+      if (!existsSync(config)) throw new Error(`Verification config not found: ${config}. Create harness/verify.json with a trusted command argv and existing inputs.`);
+      const evidence = collectEvidence(root, config, options.output ?? join(root, 'out/evidence/latest'));
       console.log(JSON.stringify(evidence, null, 2));
       if (!evidence.passed) process.exitCode = 1;
       return;
@@ -2535,21 +2577,44 @@ function main() {
     if (command === 'init') {
       const target = positionals[0];
       if (target === 'engineering') {
+        if (options.dryRun) throw new Error('--dry-run is only supported for project initialization');
         const output = JSON.stringify(starterSpec(), null, 2);
         writeOutput(output, options.output);
         return;
       }
+      if (positionals.length > 1 || (target && target !== 'repo-kit' && options.output)) throw new Error('init [repo] or init repo-kit --output <directory>');
+      const root = options.output ?? (target === 'repo-kit' ? '.' : target ?? '.');
+      const { absoluteRoot, detection, result } = initRepoKit(root, !options.dryRun);
+      printKitResult(options.dryRun ? 'Initialization preview' : 'Initialized repo kit', absoluteRoot, result, options.format);
+      if (options.format !== 'json') console.log(`Detected stack: ${detection.stackSummary}`);
+      return;
+    }
 
-      if (target === 'repo-kit') {
-        const root = options.output ?? '.';
-        const { absoluteRoot, detection, skipped } = initRepoKit(root);
-        console.log(`Initialized repo kit in ${absoluteRoot}`);
-        if (skipped.length) console.log(`Preserved existing files (review integration): ${skipped.join(', ')}`);
-        console.log(`Detected profiles: ${detection.detectedProfiles.length > 0 ? detection.detectedProfiles.join(', ') : 'none'}`);
-        return;
+    if (command === 'update' || command === 'rollback') {
+      if (options.output) throw new Error('--output is not supported for update or rollback; preview writes no files');
+      const rollback = command === 'rollback';
+      if (positionals.length > (rollback ? 2 : 1) || (rollback && !positionals[0])) throw new Error(rollback ? 'rollback <transaction-id> [repo] [--apply]' : 'update [repo] [--apply]');
+      const root = resolveKitRoot(positionals[rollback ? 1 : 0] ?? '.');
+      const files = repoKitFiles(detectProjectProfiles(root));
+      const result = rollback
+        ? rollbackKit(root, positionals[0], Object.keys(files), !!options.apply)
+        : installKit(root, files, { version: toolVersion, mode: 'update', apply: !!options.apply });
+      printKitResult(`${rollback ? 'Rollback' : 'Project update'} ${options.apply ? 'result' : 'preview'}`, root, result, options.format);
+      return;
+    }
+
+    if (command === 'doctor') {
+      if (positionals.length > 1 || options.output) throw new Error('doctor [repo] [--format text|json|md]');
+      const result = diagnoseProject(positionals[0] ?? '.');
+      if (options.format === 'json') console.log(JSON.stringify(result, null, 2));
+      else {
+        console.log(`${options.format === 'md' ? '# ' : ''}Harness doctor: ${result.root}`);
+        console.log(`Tool ${toolVersion}; ${result.managed ? 'tracked installation' : 'unmanaged project files'}; ${result.ready ? 'no blocking audit findings' : 'setup required or blocked'}`);
+        for (const finding of result.findings) console.log(`- ${finding.severity}: ${finding.code}: ${finding.message}`);
+        for (const step of result.nextSteps) console.log(`- Next: ${step}`);
       }
-
-      throw new Error('Supported init targets: engineering, repo-kit');
+      if (!result.ready) process.exitCode = 1;
+      return;
     }
 
     const inputPath = positionals[0];

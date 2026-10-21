@@ -6,3 +6,5 @@ dist/
 !.env.example
 /out/
 /reports/
+/.harness-lab/backups/
+/.harness-lab/lock
