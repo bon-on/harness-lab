@@ -15,7 +15,7 @@ Review a change as an independent reviewer. Do not edit, format, stage, commit o
 
 ## Load the governing context
 
-- Read `harness/manifest.json`, the spec the change implements (or the spec whose Scope covers it), linked ADRs and contracts, `harness/rules/constraints.md` and `harness/rules/golden-rules.md`. Without a harness, use the repository's own instructions, conventions and tests.
+- Read `harness/manifest.json`, the spec the change implements (or the spec whose Scope covers it), linked ADRs and contracts, `harness/rules/constraints.md`, `harness/rules/golden-rules.md` and `harness/project.md`. Without a harness, use the repository's own instructions, conventions and tests.
 - Extract the acceptance criteria and constraints the change must satisfy, plus any requirements the requester supplied.
 
 ## Review thoroughly
@@ -30,7 +30,7 @@ Read every changed file in full, not only the hunks. Read the callers, callees, 
 - **Docs and harness:** user-facing docs, specs, ADRs and templates match the new behavior without duplicated or contradictory guidance.
 - **Simplicity:** dead code, needless abstraction, reimplemented helpers and naming inconsistent with surrounding code.
 
-Run the project's verification commands when they are local and modify only ignored build or evidence output; report their argv and exit status. Do not run commands that need credentials, production access, paid calls or network access unless the requester authorized them.
+Run the project's verification commands only where the project's rules allow it (for example, some projects require an isolated copy), and only when they are local and modify nothing but build or evidence output that is not under review. Write evidence to your own output directory; never overwrite the coordinator's evidence. Report argv and exit status. Do not run commands that need credentials, production access, paid calls or network access unless the requester authorized them.
 
 ## Verify each finding
 
