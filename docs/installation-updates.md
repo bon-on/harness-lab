@@ -7,7 +7,7 @@ Requirements: Node.js 22 or newer and npm. Examples use a POSIX shell. No model 
 The npm-compatible package is named `@bon-on/harness-lab`, but it is distributed as a versioned GitHub Release asset. It is **not published to the npm registry**; do not use bare `npx @bon-on/harness-lab`.
 
 ```bash
-npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
 harness-lab --version
 harness-lab --help
 ```
@@ -17,7 +17,7 @@ This installs built code and assets without cloning or building the tool. Both `
 To pin the tool in an existing npm project instead:
 
 ```bash
-npm install --save-dev 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
+npm install --save-dev 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
 npx --no-install harness-lab --version
 npx --no-install harness-lab init --dry-run
 ```
@@ -69,7 +69,7 @@ harness-lab update --apply
 | Tracked file deleted locally | Preserve the deletion and report it |
 | Existing file without tracking provenance | Preserve it as unmanaged |
 | Previously tracked template removed from this release | Preserve the file and its provenance as retired |
-| Optional file (`.claude/agents/code-reviewer.md`, not in v0.2.0) that is a symlink or sits under a symlinked directory | `init` and `update` report only that file as skipped. `rollback` tolerates the link unless the transaction recorded that file, in which case rollback is refused. Other paths that include a symlink still refuse the whole operation |
+| Optional file (`.claude/agents/code-reviewer.md`, added in v0.3.0) that is a symlink or sits under a symlinked directory | `init` and `update` report only that file as skipped. `rollback` tolerates the link unless the transaction recorded that file, in which case rollback is refused. Other paths that include a symlink still refuse the whole operation |
 
 There is no force overwrite or automatic merge. Updating can apply eligible files while preserving other files; review the complete plan. A preserved file may need a manual comparison with the installed template to incorporate useful improvements. Changing policy for your project is expected and should not be discarded to make a template update pass.
 

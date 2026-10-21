@@ -40,23 +40,23 @@ harness-lab은 저장소에 기능 스펙, 아키텍처 결정 기록(ADR), 골�
 | 직접 만들었거나 harness-apply로 만든 하네스가 있는 프로젝트 | `harness-lab adopt` → `harness-lab adopt --apply` |
 | 이미 harness-lab으로 초기화한 프로젝트 | `harness-lab update` → `harness-lab update --apply` |
 
-어느 경우든 이어서 `harness-lab doctor`가 다음 할 일을 알려 줍니다. `adopt`는 아직 릴리스에 없으니 [설치](#설치)의 미배포 안내를 참고하세요.
+어느 경우든 이어서 `harness-lab doctor`가 다음 할 일을 알려 줍니다.
 
 ## 설치
 
 요구 사항: Node.js 22 이상, npm. 아래 명령은 POSIX 셸(macOS/Linux) 기준입니다.
 
-빌드된 **v0.2.0** 릴리스를 설치합니다. 소스 체크아웃이나 빌드는 필요 없습니다.
+빌드된 **v0.3.0** 릴리스를 설치합니다. 소스 체크아웃이나 빌드는 필요 없습니다.
 
 ```bash
-npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
 harness-lab --version
 harness-lab --help
 ```
 
 패키지는 **npm 레지스트리가 아니라** GitHub Releases로 배포합니다. `npx @bon-on/harness-lab`만으로는 설치되지 않습니다. 프로젝트 로컬 설치나 기여 환경 구성은 [설치와 업데이트(영문)](docs/installation-updates.md)를 참고하세요.
 
-> **미배포 변경 사항.** v0.2.0은 workflow를 import하지 않고 링크만 하는 `CLAUDE.md`를 만들며, 아래에서 설명하는 `harness/project.md`, `adopt` 명령, `code-reviewer` 에이전트, `harness-review` 스킬, Scope 기반 스펙 선택이 들어 있지 않습니다. 다음 릴리스 전까지는 소스 체크아웃에서 사용하세요. [이 저장소 개발과 검증](#이-저장소-개발과-검증)처럼 빌드한 뒤, 새 프로젝트에서 `node <checkout>/bin/harness-lab.mjs init`을 실행합니다. v0.2.0으로 이미 초기화한 프로젝트는 `init`이 기존 파일을 유지하므로, 대신 `update`로 미리 본 뒤 `update --apply`를 실행하세요.
+> **v0.2.0에서 올리기.** v0.3.0을 설치한 뒤 프로젝트에서 `update`로 미리 보고 `update --apply`를 실행하세요. 수정하지 않은 `CLAUDE.md`, `AGENTS.md`, `harness/workflow.md`는 새 템플릿(workflow import 포함)으로 바뀌고, `harness/project.md`와 `code-reviewer` 에이전트가 추가됩니다. 직접 고친 파일은 보존됩니다.
 
 ## 프로젝트에 적용하기
 

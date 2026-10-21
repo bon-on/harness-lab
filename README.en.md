@@ -40,23 +40,23 @@ Independent review also caught that diagnostic code could stretch a cycle past 1
 | Project with a hand-written or harness-apply harness | `harness-lab adopt` → `harness-lab adopt --apply` |
 | Project already initialized by harness-lab | `harness-lab update` → `harness-lab update --apply` |
 
-In every case, `harness-lab doctor` then tells you what to do next. `adopt` is not in a release yet; see the unreleased-changes note under [Install](#install).
+In every case, `harness-lab doctor` then tells you what to do next.
 
 ## Install
 
 Requirements: Node.js 22 or newer and npm. Commands below use a POSIX shell (macOS/Linux).
 
-Install the built **v0.2.0** release; no source checkout or build is needed:
+Install the built **v0.3.0** release; no source checkout or build is needed:
 
 ```bash
-npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
 harness-lab --version
 harness-lab --help
 ```
 
 The package is distributed through GitHub Releases, **not the npm registry**. Bare `npx @bon-on/harness-lab` is not an installation route. For a project-local installation or contributor setup, see [installation and updates](docs/installation-updates.md).
 
-> **Unreleased changes.** v0.2.0 generates a `CLAUDE.md` that links the workflow instead of importing it, and it does not include `harness/project.md`, the `adopt` command, the `code-reviewer` agent, the `harness-review` skill, or scope-based spec selection described below. Until the next release, use them from a source checkout: build it as in [Develop and verify this repository](#develop-and-verify-this-repository), then run `node <checkout>/bin/harness-lab.mjs init` in a new project. A project already initialized with v0.2.0 should run `update` to preview and `update --apply` instead; `init` keeps existing files.
+> **Upgrading from v0.2.0.** Install v0.3.0, then run `update` to preview and `update --apply` in the project. Unmodified `CLAUDE.md`, `AGENTS.md` and `harness/workflow.md` are replaced with the new templates (including the workflow import), and `harness/project.md` and the `code-reviewer` agent are added. Files you edited are preserved.
 
 ## Apply it to your project
 

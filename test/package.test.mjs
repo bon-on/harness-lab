@@ -40,7 +40,7 @@ test('release tarball installs offline and runs independently without developmen
   const installed = join(prefix, 'node_modules', '@bon-on', 'harness-lab');
   const metadata = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8'));
   assert.equal(metadata.name, '@bon-on/harness-lab');
-  assert.equal(metadata.version, '0.2.0');
+  assert.equal(metadata.version, '0.3.0');
   assert.equal(metadata.engines.node, '>=22');
   for (const script of ['preinstall', 'install', 'postinstall', 'prepare']) {
     assert.equal(metadata.scripts[script], undefined, `consumer lifecycle script ${script} must not require build tools`);
@@ -50,7 +50,7 @@ test('release tarball installs offline and runs independently without developmen
   }
   for (const name of ['harness-lab', 'harness']) {
     const executable = join(prefix, 'node_modules', '.bin', name);
-    assert.equal(execute(executable, ['--version']).trim(), '0.2.0');
+    assert.equal(execute(executable, ['--version']).trim(), '0.3.0');
     assert.match(execute(executable, ['--help']), /init/);
     const preview = JSON.parse(execute(executable, ['init', '--dry-run', '--format', 'json']));
     assert.equal(preview.applied, false);
