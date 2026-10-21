@@ -417,7 +417,7 @@ function parseArgs(argv: string[]) {
     positionals.push(value);
   }
   if (options.apply && options.dryRun) throw new Error('--apply and --dry-run cannot be combined');
-  if (options.apply && !['update', 'rollback'].includes(command)) throw new Error('--apply is supported only for update and rollback');
+  if (options.apply && !['adopt', 'update', 'rollback'].includes(command)) throw new Error('--apply is supported only for adopt, update and rollback');
   if (options.dryRun && !['init', 'update', 'rollback'].includes(command)) throw new Error('--dry-run is supported only for init, update and rollback');
   return { command, positionals, options };
 }
@@ -1483,6 +1483,7 @@ function repoKitManifestTemplate(detection?: DetectResult): RepoHarnessManifest 
       'AGENTS.md',
       'CLAUDE.md',
       'harness/workflow.md',
+      'harness/project.md',
       'harness/maintenance.json',
       'harness/rules/golden-rules.md',
       'harness/rules/constraints.md',
@@ -1517,6 +1518,23 @@ ${body}`;
 }
 
 const optionalKitPaths = ['.claude/agents/code-reviewer.md'];
+// Tool-managed files must stay template-identical so update can refresh them; everything else is project-owned.
+const managedKitPaths = ['AGENTS.md', 'CLAUDE.md', 'harness/workflow.md', 'harness/templates/feature-spec.md', 'harness/templates/adr.md', 'harness/templates/contract.md', ...optionalKitPaths];
+const sampleKitPaths = [
+  'harness/specs/feature-harness-apply.md',
+  'harness/adrs/adr-spec-driven-delivery.md',
+  'harness/contracts/contract-harness-apply-foundation.md',
+  'reports/repo-kit-audit-report.md',
+  'reports/repo-kit-plan-report.md',
+  'reports/harness-apply-skill-note.md',
+];
+
+const projectInstructions = `# Project instructions
+
+Project-owned. Add instructions specific to this repository here, such as operational cautions, domain rules or verification notes that do not fit a spec, ADR or rule file. harness-lab creates this file once and never replaces your edits; keep \`AGENTS.md\`, \`CLAUDE.md\` and \`harness/workflow.md\` identical to the template so \`harness-lab update\` can refresh them.
+
+- No project-specific instructions yet.
+`;
 
 function repoKitFiles(detection: DetectResult) {
   const manifest = `${JSON.stringify(repoKitManifestTemplate(detection), null, 2)}\n`;
@@ -1533,7 +1551,7 @@ Startup sequence:
 2. Select the feature spec in \`harness/specs/\` whose Scope covers the request, and read specs it also touches as secondary. Specs move \`draft\` -> \`active\` (under development) -> \`maintained\` (implemented regression baseline); \`active\` and \`maintained\` specs are both selectable. If no spec fits, write one from \`harness/templates/feature-spec.md\` before changing code; if several fit equally, ask the user. State which spec you selected.
 3. Read \`approvedPacks\` from the manifest. If it is empty, treat \`suggestedPacks\` as recommendations only.
 4. Read linked ADRs and contracts before making code changes.
-5. Read \`harness/rules/constraints.md\` and \`harness/rules/golden-rules.md\`.
+5. Read \`harness/rules/constraints.md\`, \`harness/rules/golden-rules.md\` and \`harness/project.md\`. \`harness/project.md\` holds project-specific instructions; treat them as repo constraints.
 6. Map the user request to acceptance criteria and project-specific verification commands. Run checks before claiming completion; record argv, exit status and evidence. Static audit or mock scores do not prove execution.
 7. Record architectural or cross-cutting changes in an ADR, including alternatives and consequences.
 8. Review \`harness/maintenance.json\` every 30 days and after repeated failures or stack changes. Remove duplicate guidance, check stale ADRs and unused packs, compare instruction size, and add a regression check for recurring failures. Preserve decision history. Record reviewedAt and a nonempty summary only after review and verification.
@@ -1783,9 +1801,10 @@ Create the minimum repo-native harness workflow needed for spec-driven and ADR-a
 `;
 
   return {
-    'AGENTS.md': '# Codex entry point\n\nRead and follow [the shared workflow](harness/workflow.md) before substantive work.\n',
-    'CLAUDE.md': '# Claude entry point\n\nFollow the shared workflow before substantive work. Claude Code loads it through this import:\n\n@harness/workflow.md\n',
+    'AGENTS.md': '# Codex entry point\n\nRead and follow [the shared workflow](harness/workflow.md) and [project instructions](harness/project.md) before substantive work.\n',
+    'CLAUDE.md': '# Claude entry point\n\nFollow the shared workflow and project instructions before substantive work. Claude Code loads them through these imports:\n\n@harness/workflow.md\n@harness/project.md\n',
     'harness/workflow.md': agents,
+    'harness/project.md': projectInstructions,
     '.claude/agents/code-reviewer.md': codeReviewerAgent(),
     'harness/maintenance.json': JSON.stringify({ reviewedAt: null, summary: '' }, null, 2) + '\n',
     'harness/manifest.json': manifest,
@@ -1806,7 +1825,7 @@ Create the minimum repo-native harness workflow needed for spec-driven and ADR-a
 function initRepoKit(rootPath: string, apply = true) {
   const absoluteRoot = resolveKitRoot(rootPath);
   const detection = detectProjectProfiles(absoluteRoot);
-  const result = installKit(absoluteRoot, repoKitFiles(detection), { version: toolVersion, mode: 'init', apply, optional: optionalKitPaths });
+  const result = installKit(absoluteRoot, repoKitFiles(detection), { version: toolVersion, mode: 'init', apply, optional: optionalKitPaths, initOnly: sampleKitPaths });
   return { absoluteRoot, detection, result };
 }
 
@@ -1836,11 +1855,12 @@ function diagnoseProject(rootInput: string) {
   };
   const audit = auditRepoHarness(root);
   const mutationLocked = existsSync(join(root, '.harness-lab/lock'));
-  const update = installKit(root, repoKitFiles(detectProjectProfiles(root)), { version: toolVersion, mode: 'update', apply: false, optional: optionalKitPaths });
+  const update = installKit(root, repoKitFiles(detectProjectProfiles(root)), { version: toolVersion, mode: 'update', apply: false, optional: optionalKitPaths, initOnly: sampleKitPaths });
   return {
     toolVersion, root, ready: !audit.blocked && !mutationLocked, managed: existsSync(join(root, '.harness-lab/state.json')),
     findings: [...audit.findings, ...(mutationLocked ? [{ severity: 'critical', code: 'mutation-lock-present', message: 'A mutation lock exists. Check for an active update or interrupted process before manually recovering the lock; do not delete an active lock.' }] : [])], update: update.entries,
     nextSteps: [
+      ...(!existsSync(join(root, '.harness-lab/state.json')) ? ['No files are tracked yet, so update cannot refresh them. Move project-specific content into harness/project.md, then run harness-lab adopt and adopt --apply.'] : []),
       ...(!existsSync(join(root, 'harness/verify.json')) ? ['Create harness/verify.json with the project verification argv and existing source paths; init does not guess a test command.'] : []),
       'Review harness-lab update before applying template changes.',
       'Run project verification, check-evidence and audit after changes; audit warnings still need review.',
@@ -2552,6 +2572,7 @@ function printUsage() {
 Usage:
   harness-lab --version
   harness-lab init [repo] [--dry-run] [--format text|json|md]
+  harness-lab adopt [repo] [--apply] [--format text|json|md]
   harness-lab update [repo] [--apply] [--format text|json|md]
   harness-lab rollback <transaction-id> [repo] [--apply]
   harness-lab doctor [repo] [--format text|json|md]
@@ -2615,6 +2636,16 @@ function main() {
       return;
     }
 
+    if (command === 'adopt') {
+      if (options.output || positionals.length > 1) throw new Error('adopt [repo] [--apply]');
+      const root = resolveKitRoot(positionals[0] ?? '.');
+      const result = installKit(root, repoKitFiles(detectProjectProfiles(root)), { version: toolVersion, mode: 'adopt', apply: !!options.apply, optional: optionalKitPaths, initOnly: sampleKitPaths });
+      printKitResult(`Adoption ${options.apply ? 'result' : 'preview'}`, root, result, options.format);
+      const customized = result.entries.filter(entry => entry.status === 'unmanaged' && managedKitPaths.includes(entry.path)).map(entry => entry.path);
+      if (options.format !== 'json' && customized.length) console.log(`Managed files differ from the template: ${customized.join(', ')}. Move project-specific content into harness/project.md (or rules, specs, ADRs), restore the template text, and run adopt again.`);
+      return;
+    }
+
     if (command === 'update' || command === 'rollback') {
       if (options.output) throw new Error('--output is not supported for update or rollback; preview writes no files');
       const rollback = command === 'rollback';
@@ -2623,7 +2654,7 @@ function main() {
       const files = repoKitFiles(detectProjectProfiles(root));
       const result = rollback
         ? rollbackKit(root, positionals[0], Object.keys(files), !!options.apply, optionalKitPaths)
-        : installKit(root, files, { version: toolVersion, mode: 'update', apply: !!options.apply, optional: optionalKitPaths });
+        : installKit(root, files, { version: toolVersion, mode: 'update', apply: !!options.apply, optional: optionalKitPaths, initOnly: sampleKitPaths });
       printKitResult(`${rollback ? 'Rollback' : 'Project update'} ${options.apply ? 'result' : 'preview'}`, root, result, options.format);
       return;
     }

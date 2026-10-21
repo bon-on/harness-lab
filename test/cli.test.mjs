@@ -144,6 +144,36 @@ test('code-reviewer agent respects existing files and symlinked agent directorie
  assert.equal(run('update',linked,'--apply').status,0);
  assert.match(readFileSync(join(linked,'.claude/agents/code-reviewer.md'),'utf8'),/# Harness Review/);
 });
+test('adopt brings a hand-built harness under update without creating samples',t=>{
+ const root=fixture(t);assert.equal(run('init',root).status,0);
+ rmSync(join(root,'.harness-lab'),{recursive:true});rmSync(join(root,'reports'),{recursive:true});
+ for(const sample of ['harness/specs/feature-harness-apply.md','harness/adrs/adr-spec-driven-delivery.md','harness/contracts/contract-harness-apply-foundation.md']) rmSync(join(root,sample));
+ const template=readFileSync(join(root,'harness/workflow.md'),'utf8');
+ writeFileSync(join(root,'harness/workflow.md'),template+'\nCheck active jobs before restarting the service.\n');
+ rmSync(join(root,'harness/project.md'));
+ assert.ok(JSON.parse(run('doctor',root,'--format','json').stdout).nextSteps.some(s=>/harness-lab adopt/.test(s)));
+ for(const name of ['CLAUDE.md','AGENTS.md']) assert.match(readFileSync(join(root,name),'utf8'),/harness\/project\.md/);
+ const preview=JSON.parse(run('adopt',root,'--format','json').stdout);
+ const status=p=>preview.entries.find(e=>e.path===p)?.status;
+ assert.equal(preview.applied,false);assert.equal(existsSync(join(root,'.harness-lab')),false);
+ assert.equal(status('CLAUDE.md'),'adopted');assert.equal(status('harness/workflow.md'),'unmanaged');assert.equal(status('harness/project.md'),'create');
+ assert.equal(status('harness/specs/feature-harness-apply.md'),undefined);
+ const text=run('adopt',root);assert.match(text.stdout,/Managed files differ from the template: harness\/workflow.md\. Move project-specific content into harness\/project.md/);
+ assert.equal(run('adopt',root,'--apply').status,0);
+ assert.equal(JSON.parse(run('doctor',root,'--format','json').stdout).managed,true);
+ assert.ok(!JSON.parse(run('doctor',root,'--format','json').stdout).nextSteps.some(s=>/adopt/.test(s)));
+ assert.ok(!existsSync(join(root,'harness/specs/feature-harness-apply.md'))&&!existsSync(join(root,'reports')));
+ assert.match(readFileSync(join(root,'harness/workflow.md'),'utf8'),/Check active jobs/);
+ writeFileSync(join(root,'harness/project.md'),'# Project instructions\n\n- Check active jobs before restarting the service.\n');
+ writeFileSync(join(root,'harness/workflow.md'),template);
+ const second=JSON.parse(run('adopt',root,'--apply','--format','json').stdout);
+ assert.equal(second.entries.find(e=>e.path==='harness/workflow.md').status,'adopted');
+ const update=JSON.parse(run('update',root,'--format','json').stdout);
+ assert.equal(update.entries.find(e=>e.path==='harness/workflow.md').status,'unchanged');
+ assert.equal(update.entries.find(e=>e.path==='harness/project.md').status,'modified');
+ assert.equal(update.entries.find(e=>e.path==='harness/specs/feature-harness-apply.md'),undefined);
+ assert.equal(run('adopt',root,'--output','x').status,1);
+});
 test('Claude entry point must import the shared workflow',t=>{
  const root=fixture(t);run('init','repo-kit','--output',root);
  const codes=()=>JSON.parse(run('audit',root,'--format','json').stdout).findings.map(x=>x.code);

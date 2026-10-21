@@ -7,6 +7,7 @@ Install the [built release](installation-updates.md) first. Examples below use `
 | `--version` | Print installed CLI version | `harness-lab --version` |
 | `detect <repo>` | Detect stack signals and recommend packs | `harness-lab detect . --format md` |
 | `init [repo] [--dry-run]` | Create missing harness files; default repo is current directory | `harness-lab init --dry-run` |
+| `adopt [repo] [--apply]` | Track an existing harness's template-identical files so `update` can refresh them | `harness-lab adopt --apply` |
 | `update [repo] [--apply]` | Preview template changes; apply explicitly | `harness-lab update --apply` |
 | `rollback <transaction-id> [repo] [--apply]` | Preview or apply a guarded restore | `harness-lab rollback <transaction-id> --apply` |
 | `doctor [repo]` | Read-only project diagnostics; default repo is current directory | `harness-lab doctor` |

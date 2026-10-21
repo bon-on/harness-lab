@@ -26,7 +26,7 @@ harness-lab --help
 
 패키지는 **npm 레지스트리가 아니라** GitHub Releases로 배포합니다. `npx @bon-on/harness-lab`만으로는 설치되지 않습니다. 프로젝트 로컬 설치나 기여 환경 구성은 [설치와 업데이트(영문)](docs/installation-updates.md)를 참고하세요.
 
-> **미배포 변경 사항.** v0.2.0은 workflow를 import하지 않고 링크만 하는 `CLAUDE.md`를 만들며, 아래에서 설명하는 `code-reviewer` 에이전트, `harness-review` 스킬, Scope 기반 스펙 선택이 들어 있지 않습니다. 다음 릴리스 전까지는 소스 체크아웃에서 사용하세요. [이 저장소 개발과 검증](#이-저장소-개발과-검증)처럼 빌드한 뒤, 새 프로젝트에서 `node <checkout>/bin/harness-lab.mjs init`을 실행합니다. v0.2.0으로 이미 초기화한 프로젝트는 `init`이 기존 파일을 유지하므로, 대신 `update`로 미리 본 뒤 `update --apply`를 실행하세요.
+> **미배포 변경 사항.** v0.2.0은 workflow를 import하지 않고 링크만 하는 `CLAUDE.md`를 만들며, 아래에서 설명하는 `harness/project.md`, `adopt` 명령, `code-reviewer` 에이전트, `harness-review` 스킬, Scope 기반 스펙 선택이 들어 있지 않습니다. 다음 릴리스 전까지는 소스 체크아웃에서 사용하세요. [이 저장소 개발과 검증](#이-저장소-개발과-검증)처럼 빌드한 뒤, 새 프로젝트에서 `node <checkout>/bin/harness-lab.mjs init`을 실행합니다. v0.2.0으로 이미 초기화한 프로젝트는 `init`이 기존 파일을 유지하므로, 대신 `update`로 미리 본 뒤 `update --apply`를 실행하세요.
 
 ## 프로젝트에 적용하기
 
@@ -64,11 +64,20 @@ harness-lab rollback <transaction-id>          # 읽기 전용 미리보기
 harness-lab rollback <transaction-id> --apply  # 적용 후 바뀐 것이 없으면 복원
 ```
 
-업데이트는 관리하지 않는 기존 파일과 로컬 수정·삭제를 보존합니다. 도구가 만든 파일만 추적합니다. 추적 기능 도입 전에 초기화한 프로젝트는 자동으로 편입되지 않으니, 계획을 검토하고 보존된 파일을 직접 처리하세요. 자세한 내용은 [업데이트 소유권, 백업, 복구(영문)](docs/installation-updates.md)를 참고하세요.
+업데이트는 관리하지 않는 기존 파일과 로컬 수정·삭제를 보존합니다. 도구가 만들었거나 명시적으로 편입(adopt)한 파일만 추적합니다. 프로젝트 고유 지침은 `harness/project.md`(와 규칙, 스펙, ADR)에 두세요. 그래야 도구가 관리하는 진입점, workflow, 템플릿, 리뷰어가 템플릿과 같은 상태로 유지되어 업데이트할 수 있습니다.
+
+하네스를 직접 작성했거나 harness-apply로 적용한 프로젝트는 아직 추적되지 않습니다. 명시적으로 편입하세요.
+
+```bash
+harness-lab adopt              # 읽기 전용 미리보기: 파일별로 adopted, create, unmanaged 표시
+harness-lab adopt --apply      # 템플릿과 같은 파일을 추적하고, 없는 파일은 생성
+```
+
+`adopt`는 기존 파일을 수정하지 않으며 샘플 스펙·ADR·계약·보고서를 추가하지 않습니다. 템플릿과 다른 파일은 관리 대상에서 빠집니다. 그 안의 프로젝트 고유 내용을 `harness/project.md`로 옮기고 템플릿 내용으로 되돌린 뒤 `adopt`를 다시 실행하세요. 편입도 업데이트처럼 rollback할 수 있습니다. 자세한 내용은 [업데이트 소유권, 백업, 복구(영문)](docs/installation-updates.md)를 참고하세요.
 
 ## Claude Code에서 사용하기
 
-대상 프로젝트를 Claude Code로 엽니다. `CLAUDE.md`가 `@harness/workflow.md`로 workflow를 import하므로 세션 시작 시 자동으로 로드됩니다. `.claude/agents/code-reviewer.md`는 독립 리뷰어를 추가합니다. 전역 스킬 설치는 필요 없습니다.
+대상 프로젝트를 Claude Code로 엽니다. `CLAUDE.md`가 `@harness/workflow.md`와 `@harness/project.md`를 import하므로 공용 workflow와 프로젝트 고유 지침이 세션 시작 시 자동으로 로드됩니다. `.claude/agents/code-reviewer.md`는 독립 리뷰어를 추가합니다. 전역 스킬 설치는 필요 없습니다.
 
 요청 예시:
 

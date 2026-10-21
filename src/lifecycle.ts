@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 
-type Status = 'create' | 'update' | 'unchanged' | 'modified' | 'unmanaged' | 'deleted' | 'retired' | 'skipped';
+type Status = 'create' | 'update' | 'unchanged' | 'modified' | 'unmanaged' | 'deleted' | 'retired' | 'skipped' | 'adopted';
 type State = { schemaVersion: 1; version: string; files: Record<string, string> };
 type Change = { path: string; before: string | null; after: string | null };
 type Transaction = { schemaVersion: 1; id: string; beforeState: string | null; afterState: string; changes: Change[] };
@@ -101,11 +101,12 @@ function mutate(root: string, changes: Change[], beforeState: string | null, aft
     throw new Error(`Mutation failed: ${String(error)}. ${failures.length ? `Recovery incomplete; inspect backup and paths: ${failures.join(', ')}` : 'Original file contents and state restored.'}`);
   }
 }
-export function installKit(rootInput: string, files: Record<string, string>, options: { version: string; mode: 'init' | 'update'; apply: boolean; optional?: string[] }): KitResult {
+export function installKit(rootInput: string, files: Record<string, string>, options: { version: string; mode: 'init' | 'update' | 'adopt'; apply: boolean; optional?: string[]; initOnly?: string[] }): KitResult {
   const root = resolveKitRoot(rootInput);
   const allowed = new Set(Object.keys(files));
   const optional = new Set(options.optional ?? []);
-  if (!options.version || !['init', 'update'].includes(options.mode)) throw new Error('Invalid install options');
+  const initOnly = new Set(options.initOnly ?? []);
+  if (!options.version || !['init', 'update', 'adopt'].includes(options.mode)) throw new Error('Invalid install options');
   for (const content of Object.values(files)) if (typeof content !== 'string') throw new Error('Template contents must be strings');
   const plan = () => {
     preflight(root, allowed, optional);
@@ -118,11 +119,14 @@ export function installKit(rootInput: string, files: Record<string, string>, opt
       if (optional.has(p) && linked(root, p)) { entries.push({ path: p, status: 'skipped' }); continue; }
       const current = read(root, p);
       const baseline = state && Object.hasOwn(state.files, p) ? state.files[p] : undefined;
+      // Sample files are created by init only; update and adopt never add them to an existing project.
+      if (!baseline && current === null && initOnly.has(p) && options.mode !== 'init') continue;
       let status: Status;
-      if (baseline) status = current === null ? 'deleted' : hash(current) !== baseline ? 'modified' : current === content ? 'unchanged' : options.mode === 'init' ? 'unchanged' : 'update';
-      else status = current === null ? 'create' : 'unmanaged';
+      if (baseline) status = current === null ? 'deleted' : hash(current) !== baseline ? 'modified' : current === content ? 'unchanged' : options.mode === 'update' ? 'update' : 'unchanged';
+      else status = current === null ? 'create' : options.mode === 'adopt' && current === content ? 'adopted' : 'unmanaged';
       entries.push({ path: p, status });
-      if (status === 'create' || status === 'update') { changes.push({ path: p, before: current, after: content }); next.files[p] = hash(content); }
+      // Adoption records a baseline without changing content (before === after).
+      if (status === 'create' || status === 'update' || status === 'adopted') { changes.push({ path: p, before: current, after: content }); next.files[p] = hash(content); }
     }
     for (const p of Object.keys(state?.files ?? {})) if (!allowed.has(p)) entries.push({ path: p, status: 'retired' });
     return { raw, next, entries, changes };
@@ -160,7 +164,8 @@ export function rollbackKit(rootInput: string, id: string, allowedPaths: string[
     for (const change of tx.changes) {
       if (!object(change) || typeof change.path !== 'string' || !(change.before === null || typeof change.before === 'string') || typeof change.after !== 'string') throw new Error('Invalid transaction change');
       validPath(change.path);
-      if (!allowed.has(change.path) || seen.has(change.path) || after.files[change.path] !== hash(change.after) || (change.before !== null && before?.files[change.path] !== hash(change.before)) || (change.before === null && before?.files[change.path])) throw new Error('Inconsistent transaction change');
+      const adoption = change.before === change.after && !before?.files[change.path];
+      if (!allowed.has(change.path) || seen.has(change.path) || after.files[change.path] !== hash(change.after) || (change.before !== null && !adoption && before?.files[change.path] !== hash(change.before)) || (change.before === null && before?.files[change.path])) throw new Error('Inconsistent transaction change');
       seen.add(change.path);
       if (read(root, change.path) !== change.after) throw new Error(`Rollback refused: changed file ${change.path}`);
     }
@@ -171,7 +176,7 @@ export function rollbackKit(rootInput: string, id: string, allowedPaths: string[
     return { tx: tx as Transaction, version: before?.version ?? after.version };
   };
   const initial = plan();
-  const result = (tx: Transaction, version: string, applied: boolean): KitResult => ({ version, applied, transactionId: id, entries: tx.changes.map(c => ({ path: c.path, status: c.before === null ? 'deleted' : 'update' })) });
+  const result = (tx: Transaction, version: string, applied: boolean): KitResult => ({ version, applied, transactionId: id, entries: tx.changes.map(c => ({ path: c.path, status: c.before === null ? 'deleted' : c.before === c.after ? 'unmanaged' : 'update' })) });
   if (!apply) return result(initial.tx, initial.version, false);
   return locked(root, () => {
     const { tx, version } = plan();

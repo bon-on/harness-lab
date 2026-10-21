@@ -4,7 +4,7 @@ harness-lab은 Claude·Codex가 프로젝트의 스펙, ADR(아키텍처 결정 
 
 ## 1. 설치
 
-Node.js 22 이상과 npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다. 빌드된 v0.2.0 릴리스를 설치하므로 저장소 복제나 빌드가 필요하지 않습니다. 단, v0.2.0에는 `CLAUDE.md`의 workflow import, `code-reviewer` 에이전트, `harness-review` 스킬, Scope 기반 스펙 선택이 아직 없습니다. 이 기능은 다음 릴리스 전까지 [소스 체크아웃](../README.ko.md#이-저장소-개발과-검증)에서 사용하세요. v0.2.0으로 이미 초기화한 프로젝트는 `init` 대신 `update`로 미리 본 뒤 `update --apply`를 실행합니다.
+Node.js 22 이상과 npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다. 빌드된 v0.2.0 릴리스를 설치하므로 저장소 복제나 빌드가 필요하지 않습니다. 단, v0.2.0에는 `CLAUDE.md`의 workflow import, `harness/project.md`, `adopt` 명령, `code-reviewer` 에이전트, `harness-review` 스킬, Scope 기반 스펙 선택이 아직 없습니다. 이 기능은 다음 릴리스 전까지 [소스 체크아웃](../README.ko.md#이-저장소-개발과-검증)에서 사용하세요. v0.2.0으로 이미 초기화한 프로젝트는 `init` 대신 `update`로 미리 본 뒤 `update --apply`를 실행합니다. 하네스를 직접 작성했거나 harness-apply로 적용한 프로젝트는 고유 지침을 `harness/project.md`로 옮긴 뒤 `adopt`, `adopt --apply`로 편입합니다.
 
 ```bash
 npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.2.0/bon-on-harness-lab-0.2.0.tgz'

@@ -26,7 +26,7 @@ harness-lab --help
 
 The package is distributed through GitHub Releases, **not the npm registry**. Bare `npx @bon-on/harness-lab` is not an installation route. For a project-local installation or contributor setup, see [installation and updates](docs/installation-updates.md).
 
-> **Unreleased changes.** v0.2.0 generates a `CLAUDE.md` that links the workflow instead of importing it, and it does not include the `code-reviewer` agent, the `harness-review` skill, or scope-based spec selection described below. Until the next release, use them from a source checkout: build it as in [Develop and verify this repository](#develop-and-verify-this-repository), then run `node <checkout>/bin/harness-lab.mjs init` in a new project. A project already initialized with v0.2.0 should run `update` to preview and `update --apply` instead; `init` keeps existing files.
+> **Unreleased changes.** v0.2.0 generates a `CLAUDE.md` that links the workflow instead of importing it, and it does not include `harness/project.md`, the `adopt` command, the `code-reviewer` agent, the `harness-review` skill, or scope-based spec selection described below. Until the next release, use them from a source checkout: build it as in [Develop and verify this repository](#develop-and-verify-this-repository), then run `node <checkout>/bin/harness-lab.mjs init` in a new project. A project already initialized with v0.2.0 should run `update` to preview and `update --apply` instead; `init` keeps existing files.
 
 ## Apply it to your project
 
@@ -64,11 +64,20 @@ harness-lab rollback <transaction-id>          # read-only preview
 harness-lab rollback <transaction-id> --apply  # restore if nothing changed since apply
 ```
 
-Updates preserve existing unmanaged files and local edits or deletions. Only tool-created files are tracked. Projects initialized before tracking was introduced are not automatically adopted. Review the plan and handle preserved files manually. See [update ownership, backups, and recovery](docs/installation-updates.md).
+Updates preserve existing unmanaged files and local edits or deletions. Only tool-created or explicitly adopted files are tracked. Keep project-specific instructions in `harness/project.md` (and in rules, specs, and ADRs) so the managed entry points, workflow, templates, and reviewer stay template-identical and updatable.
+
+A project whose harness was written by hand or by harness-apply has no tracking yet. Adopt it explicitly:
+
+```bash
+harness-lab adopt              # read-only preview: adopted, create, or unmanaged per file
+harness-lab adopt --apply      # track template-identical files and create missing ones
+```
+
+`adopt` never changes existing files and never adds the sample spec, ADR, contract, or reports. Files that differ from the template stay unmanaged: move their project-specific content into `harness/project.md`, restore the template text, and run `adopt` again. Adoption can be rolled back like an update. See [update ownership, backups, and recovery](docs/installation-updates.md).
 
 ## Use with Claude Code
 
-Open your target project in Claude Code. `CLAUDE.md` imports `harness/workflow.md` with `@harness/workflow.md`, so the workflow loads at session start. `.claude/agents/code-reviewer.md` adds the independent reviewer. A globally installed skill is not required.
+Open your target project in Claude Code. `CLAUDE.md` imports `@harness/workflow.md` and `@harness/project.md`, so the shared workflow and project-specific instructions load at session start. `.claude/agents/code-reviewer.md` adds the independent reviewer. A globally installed skill is not required.
 
 Example request:
 

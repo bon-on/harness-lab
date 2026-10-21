@@ -73,7 +73,9 @@ harness-lab update --apply
 
 There is no force overwrite or automatic merge. Updating can apply eligible files while preserving other files; review the complete plan. A preserved file may need a manual comparison with the installed template to incorporate useful improvements. Changing policy for your project is expected and should not be discarded to make a template update pass.
 
-Projects initialized before provenance tracking was introduced retain their existing files as unmanaged. Neither `init` nor `update` silently adopts them, even if their contents resemble a template. Missing new template files can still be created and tracked. Do not delete project policy just to obtain tracking.
+Projects initialized before provenance tracking was introduced, or whose harness was written by hand or by harness-apply, retain their existing files as unmanaged. Neither `init` nor `update` silently adopts them, even if their contents resemble a template. Missing new template files can still be created and tracked; sample specs, ADRs, contracts and reports are created only by `init`. Do not delete project policy just to obtain tracking.
+
+To opt in, run `harness-lab adopt` (preview) and `harness-lab adopt --apply`. Adoption tracks only files identical to the current template and creates missing kit files; it never edits existing files. Managed files are `AGENTS.md`, `CLAUDE.md`, `harness/workflow.md`, `harness/templates/*` and `.claude/agents/code-reviewer.md`. Move project-specific content from them into the project-owned `harness/project.md` (or rules, specs and ADRs), restore the template text, and adopt again. Adoption does not apply pending template updates to files that are already tracked; run `update` for that. Managed files that are symlinks (for example `CLAUDE.md` linked to `AGENTS.md`) make adopt fail; replace them with the template files first. `rollback <transaction-id>` releases an adoption without changing file contents.
 
 After changes, run your project's verification and audit:
 

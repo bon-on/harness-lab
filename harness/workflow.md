@@ -7,7 +7,7 @@ Startup sequence:
 2. Select the feature spec in `harness/specs/` whose Scope covers the request, and read specs it also touches as secondary. Specs move `draft` -> `active` (under development) -> `maintained` (implemented regression baseline); `active` and `maintained` specs are both selectable. If no spec fits, write one from `harness/templates/feature-spec.md` before changing code; if several fit equally, ask the user. State which spec you selected.
 3. Read `approvedPacks` from the manifest. If it is empty, treat `suggestedPacks` as recommendations only.
 4. Read linked ADRs and contracts before making code changes.
-5. Read `harness/rules/constraints.md` and `harness/rules/golden-rules.md`.
+5. Read `harness/rules/constraints.md`, `harness/rules/golden-rules.md` and `harness/project.md`. `harness/project.md` holds project-specific instructions; treat them as repo constraints.
 6. Map the user request to acceptance criteria and project-specific verification commands. Run checks before claiming completion; record argv, exit status and evidence. Static audit or mock scores do not prove execution.
 7. Record architectural or cross-cutting changes in an ADR, including alternatives and consequences.
 8. Review `harness/maintenance.json` every 30 days and after repeated failures or stack changes. Remove duplicate guidance, check stale ADRs and unused packs, compare instruction size, and add a regression check for recurring failures. Preserve decision history. Record reviewedAt and a nonempty summary only after review and verification.
