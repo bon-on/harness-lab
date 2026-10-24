@@ -18,7 +18,7 @@ export function inside(root: string, name: string) {
   }
   return target;
 }
-export function snapshot(root: string, inputs: string[]) {
+export function snapshot(root: string, inputs: string[], allowEmpty = false) {
   if (!Array.isArray(inputs) || !inputs.length) throw new Error('inputs must be nonempty');
   const files: Record<string, string> = {};
   function visit(name: string) {
@@ -27,7 +27,21 @@ export function snapshot(root: string, inputs: string[]) {
     else files[name] = digest(readFileSync(target));
   }
   for (const name of [...inputs].sort()) visit(name);
-  if (!Object.keys(files).length) throw new Error('No source files in scope');
+  if (!allowEmpty && !Object.keys(files).length) throw new Error('No source files in scope');
+  return files;
+}
+// Snapshot inputs plus target files that must stay deleted, so a review of deletions alone still has a state to compare.
+export function reviewState(root: string, inputs: string[], absent: string[]) {
+  if (!Array.isArray(absent) || absent.some(name => typeof name !== 'string')) throw new Error('absent must be a list of paths');
+  const files: Record<string, string> = inputs.length || !absent.length ? snapshot(root, inputs, absent.length > 0) : {};
+  for (const name of [...absent].sort()) {
+    const rel = relative(root, resolve(root, name));
+    if (!rel || escapes(rel)) throw new Error(`Unsafe path: ${name}`);
+    try { lstatSync(resolve(root, name)); files[name] = 'present'; } catch (error) {
+      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+      files[name] = 'absent';
+    }
+  }
   return files;
 }
 const evidenceFiles = ['stdout.txt', 'stderr.txt', 'checks.json'];
@@ -36,7 +50,8 @@ const overlaps = (a: string, b: string) => [relative(a, b), relative(b, a)].some
 // so overlap is known before any directory is created.
 export function realTarget(path: string): string {
   try { return realpathSync.native(path); } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(path) === path) throw error;
+    // ENOTDIR: an ancestor is now a file, as when a directory was replaced by a file of the same name.
+    if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '') || dirname(path) === path) throw error;
     return join(realTarget(dirname(path)), basename(path));
   }
 }
@@ -121,7 +136,8 @@ export function checkEvidence(filename: string, rootInput: string, maxAgeMs = 7 
     if (data.unchanged !== true || JSON.stringify(data.before) !== JSON.stringify(data.after)) issues.push('source-changed-during-run');
     const finish = Date.parse(data.finishedAt), start = Date.parse(data.startedAt);
     if (!Number.isFinite(start) || !Number.isFinite(finish) || finish < start || finish > Date.now() + 60000 || Date.now() - finish > maxAgeMs) issues.push('stale-or-invalid-time');
-    if (JSON.stringify(snapshot(resolve(rootInput), data.inputs)) !== JSON.stringify(data.after)) issues.push('source-hash-mismatch');
+    const current = data.kind === 'cross-review' ? reviewState(resolve(rootInput), data.inputs, data.absent ?? []) : snapshot(resolve(rootInput), data.inputs);
+    if (JSON.stringify(current) !== JSON.stringify(data.after)) issues.push('source-hash-mismatch');
     if (!Array.isArray(data.logs) || data.logs.length !== logFiles.length || new Set(data.logs.map((x: {file:string}) => x.file)).size !== logFiles.length) throw new Error('Missing logs');
     for (const log of data.logs) {
       if (!logFiles.includes(log.file)) throw new Error('Invalid log path');

@@ -118,7 +118,7 @@ test('a timeout also stops processes the reviewer spawned', t => {
 });
 
 test('verdicts: missing or template verdicts fail, and tampered bundles are rejected', t => {
-  for (const [name, text] of [['missing', '1. [Critical] src/a.js:1 - cut off'], ['template', 'Verdict: approve | approve with comments | request changes'], ['heading', '## Verdict\\n\\nApprove only after fixing #1']]) {
+  for (const [name, text] of [['missing', '1. [Critical] src/a.js:1 - cut off'], ['template', 'Verdict: approve | approve with comments | request changes'], ['heading', '## Verdict\\n\\nApprove only after fixing #1'], ['listed', 'Verdict: approve, approve with comments or request changes'], ['conditional', 'Verdict: approve only after fixing the High findings']]) {
     const { root, tools } = project(t);
     const result = run('cross-review', root, '--reviewer', 'claude', '--command', fakeReviewer(tools, 'claude', `emit(${JSON.stringify(text)});`));
     assert.equal(result.status, 1, name);
@@ -187,7 +187,7 @@ test('targets: arguments, empty diffs, non-Git projects and paths are validated 
     [['--reviewer', 'codex', '--timeout-ms', '0'], /--timeout-ms must be/],
     [['--reviewer', 'codex', '--base', 'no-such-ref'], /Unknown --base revision/],
     [['--reviewer', 'codex', '--path', '../outside.js'], /Unsafe path/],
-    [['--reviewer', 'codex', '--path', 'src/missing.js'], /Review path not found/],
+    [['--reviewer', 'codex', '--path', 'src/missing.js'], /Nothing to review: no changes against HEAD in the listed paths/],
   ]) {
     const result = run('cross-review', root, ...args, '--command', codex);
     assert.notEqual(result.status, 0, args.join(' '));
@@ -225,4 +225,177 @@ test('review output refuses links and input overlap like verify', t => {
   assert.notEqual(inside.status, 0);
   assert.match(inside.stderr, /outside input scope/);
   assert.equal(existsSync(join(root, 'src/review')), false);
+});
+
+test('targets: non-ASCII and newline file names are tracked as real paths', t => {
+  const { root, tools } = project(t, { change: false });
+  writeFileSync(join(root, 'src/한글.js'), 'export const k = 1;\n');
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'korean');
+  writeFileSync(join(root, 'src/한글.js'), 'export const k = 2;\n');
+  writeFileSync(join(root, 'src/새 파일.js'), 'export const n = 1;\n');
+  writeFileSync(join(root, 'src/line\nbreak.js'), 'export const l = 1;\n');
+  const result = run('cross-review', root, '--reviewer', 'claude', '--command', fakeReviewer(tools, 'claude', `emit('Verdict: approve');`));
+  assert.equal(result.status, 0, result.stderr);
+  const files = ['src/line\nbreak.js', 'src/새 파일.js', 'src/한글.js'];
+  assert.deepEqual(record(root).target.files, files);
+  for (const file of files) assert.ok(record(root).inputs.includes(file), file);
+  writeFileSync(join(root, 'src/한글.js'), 'export const k = 3;\n');
+  assert.match(run('check-evidence', join(root, 'out/reviews/latest/review.json'), root).stdout, /source-hash-mismatch/);
+});
+
+test('targets: deletion-only changes are reviewed and must stay deleted', t => {
+  for (const args of [[], ['--path', 'src/a.js']]) {
+    const { root, tools } = project(t, { change: false });
+    rmSync(join(root, 'src/a.js'));
+    const result = run('cross-review', root, '--reviewer', 'claude', ...args, '--command', fakeReviewer(tools, 'claude', `emit('Verdict: approve');`));
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(record(root).inputs, []);
+    assert.deepEqual(record(root).absent, ['src/a.js']);
+    assert.match(readFileSync(join(root, 'out/reviews/latest/diff.patch'), 'utf8'), /deleted file/);
+    const evidence = join(root, 'out/reviews/latest/review.json');
+    assert.equal(run('check-evidence', evidence, root).status, 0);
+    writeFileSync(join(root, 'src/a.js'), 'back\n');
+    assert.match(run('check-evidence', evidence, root).stdout, /source-hash-mismatch/);
+  }
+  const configured = project(t, { change: false });
+  mkdirSync(join(configured.root, 'harness'));
+  writeFileSync(join(configured.root, 'harness/verify.json'), JSON.stringify({ command: ['true'], inputs: ['src'] }));
+  git(configured.root, 'add', '.'); git(configured.root, 'commit', '-qm', 'config');
+  rmSync(join(configured.root, 'src/a.js'));
+  const emptied = run('cross-review', configured.root, '--reviewer', 'claude', '--command', fakeReviewer(configured.tools, 'claude', `emit('Verdict: approve');`));
+  assert.equal(emptied.status, 0, emptied.stderr);
+  assert.deepEqual(record(configured.root).absent, ['src/a.js']);
+  assert.equal(run('check-evidence', join(configured.root, 'out/reviews/latest/review.json'), configured.root).status, 0);
+  const direct = project(t, { change: false });
+  mkdirSync(join(direct.root, 'harness'));
+  mkdirSync(join(direct.root, 'docs'));
+  writeFileSync(join(direct.root, 'docs/x.md'), 'doc\n');
+  writeFileSync(join(direct.root, 'harness/verify.json'), JSON.stringify({ command: ['true'], inputs: ['./src/a.js', 'docs', 'harness'] }));
+  git(direct.root, 'add', '.'); git(direct.root, 'commit', '-qm', 'config');
+  rmSync(join(direct.root, 'src/a.js'));
+  rmSync(join(direct.root, 'docs'), { recursive: true });
+  const deletedInput = run('cross-review', direct.root, '--reviewer', 'claude', '--command', fakeReviewer(direct.tools, 'claude', `emit('Verdict: approve');`));
+  assert.equal(deletedInput.status, 0, deletedInput.stderr);
+  assert.deepEqual([record(direct.root).inputs, record(direct.root).absent], [['harness'], ['docs/x.md', 'src/a.js']]);
+  writeFileSync(join(direct.root, 'src/a.js'), 'back\n');
+  assert.match(run('check-evidence', join(direct.root, 'out/reviews/latest/review.json'), direct.root).stdout, /source-hash-mismatch/);
+  const { root } = project(t, { change: false });
+  assert.match(run('cross-review', root, '--reviewer', 'claude', '--path', '../outside.js', '--dry-run').stderr, /Unsafe path/);
+  const plain = project(t, { gitRepo: false, change: false });
+  assert.match(run('cross-review', plain.root, '--reviewer', 'claude', '--path', 'src/missing.js', '--dry-run').stderr, /Review path not found/);
+});
+
+test('targets: renames track the old path and a subdirectory root uses its own paths', t => {
+  const { root, tools } = project(t, { change: false });
+  git(root, 'mv', 'src/a.js', 'src/renamed.js');
+  const reviewer = fakeReviewer(tools, 'claude', `emit('Verdict: approve');`);
+  assert.equal(run('cross-review', root, '--reviewer', 'claude', '--command', reviewer).status, 0);
+  assert.deepEqual(record(root).target.files, ['src/a.js', 'src/renamed.js']);
+  assert.deepEqual(record(root).absent, ['src/a.js']);
+  const evidence = join(root, 'out/reviews/latest/review.json');
+  writeFileSync(join(root, 'src/a.js'), 'export const a = 1;\n');
+  assert.match(run('check-evidence', evidence, root).stdout, /source-hash-mismatch/);
+
+  const sub = project(t, { change: false });
+  writeFileSync(join(sub.root, 'src/a.js'), 'export const a = 2;\n');
+  writeFileSync(join(sub.root, 'top.js'), 'outside the subdirectory\n');
+  const src = join(sub.root, 'src');
+  const result = run('cross-review', src, '--reviewer', 'claude', '--command', reviewer, '--output', join(sub.root, 'out/sub'));
+  assert.equal(result.status, 0, result.stderr);
+  const subRecord = JSON.parse(readFileSync(join(sub.root, 'out/sub/review.json'), 'utf8'));
+  assert.deepEqual(subRecord.target.files, ['a.js']);
+  assert.deepEqual(subRecord.inputs, ['a.js']);
+  assert.deepEqual(subRecord.absent, []);
+  writeFileSync(join(sub.root, 'src/a.js'), 'export const a = 3;\n');
+  assert.match(run('check-evidence', join(sub.root, 'out/sub/review.json'), src).stdout, /source-hash-mismatch/);
+});
+
+test('targets: listed paths are literal, and the bundle never overwrites tracked edits', t => {
+  const { root, tools } = project(t);
+  const reviewer = fakeReviewer(tools, 'claude', `emit('Verdict: approve.');`);
+  for (const path of ['src/*', ':!src/a.js']) {
+    assert.match(run('cross-review', root, '--reviewer', 'claude', '--path', path, '--command', reviewer).stderr, /Nothing to review/, path);
+  }
+  mkdirSync(join(root, 'reports'));
+  writeFileSync(join(root, 'reports/review.md'), 'old bundle\n');
+  git(root, 'add', '.'); git(root, 'commit', '-qm', 'tracked bundle');
+  rmSync(join(root, 'reports/review.md'));
+  writeFileSync(join(root, 'src/a.js'), 'export const a = 3;\n');
+  assert.match(run('cross-review', root, '--reviewer', 'claude', '--output', join(root, 'reports'), '--command', reviewer).stderr, /outside input scope/);
+  writeFileSync(join(root, 'reports/review.md'), 'old bundle, edited\n');
+  for (const output of ['reports', 'src', '.']) {
+    assert.match(run('cross-review', root, '--reviewer', 'claude', '--output', join(root, output), '--command', reviewer).stderr, /outside input scope/, output);
+  }
+  assert.match(run('cross-review', root, '--reviewer', 'claude', '--path', 'src/a.js', '--output', join(root, 'reports'), '--command', reviewer).stderr, /uncommitted changes to tracked files/, 'scoped review');
+  const sub = run('cross-review', join(root, 'src'), '--reviewer', 'claude', '--output', join(root, 'reports'), '--command', reviewer);
+  assert.match(sub.stderr, /uncommitted changes to tracked files/, 'subdirectory root with a sibling output');
+  writeFileSync(join(root, 'reports/review.md'), 'staged\n');
+  git(root, 'add', 'reports/review.md');
+  writeFileSync(join(root, 'reports/review.md'), 'old bundle\n');
+  assert.match(run('cross-review', root, '--reviewer', 'claude', '--path', 'src/a.js', '--output', join(root, 'reports'), '--command', reviewer).stderr, /uncommitted changes to tracked files/, 'staged change cancelled in the working tree');
+  git(root, 'reset', '-q', 'reports/review.md');
+  writeFileSync(join(root, 'reports/review.md'), 'old bundle, edited\n');
+  const other = project(t, { change: false });
+  const plainDir = mkdtempSync(join(tmpdir(), 'harness-cross-plain-'));
+  t.after(() => rmSync(plainDir, { recursive: true, force: true }));
+  writeFileSync(join(plainDir, 'a.js'), 'x\n');
+  writeFileSync(join(other.root, 'src/a.js'), 'edited in another repository\n');
+  const foreign = run('cross-review', plainDir, '--reviewer', 'claude', '--path', 'a.js', '--output', join(other.root, 'src'), '--command', reviewer);
+  assert.match(foreign.stderr, /uncommitted changes to tracked files/, 'output inside another repository');
+  assert.equal(readFileSync(join(root, 'reports/review.md'), 'utf8'), 'old bundle, edited\n', 'a tracked edit is never overwritten');
+  assert.equal(existsSync(join(root, 'reports/review.json')), false);
+});
+
+test('targets: a dangling symlink target is rejected before the model runs', t => {
+  const { root, tools } = project(t, { change: false });
+  rmSync(join(root, 'src/a.js'));
+  symlinkSync('missing', join(root, 'src/a.js'));
+  const marker = join(tools, 'called');
+  const result = run('cross-review', root, '--reviewer', 'claude', '--command', fakeReviewer(tools, 'claude', `fs.writeFileSync(${JSON.stringify(marker)}, 'x'); emit('Verdict: approve');`));
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Symlink not allowed/);
+  assert.equal(existsSync(marker), false);
+});
+
+test('targets: the diff ignores textconv drivers, and a directory replaced by a file is reviewable', t => {
+  const { root, tools } = project(t);
+  writeFileSync(join(root, '.gitattributes'), '*.js diff=broken\n');
+  git(root, 'config', 'diff.broken.textconv', 'false');
+  const reviewer = fakeReviewer(tools, 'claude', `emit('Verdict: approve');`);
+  const result = run('cross-review', root, '--reviewer', 'claude', '--command', reviewer);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(readFileSync(join(root, 'out/reviews/latest/diff.patch'), 'utf8'), /\+export const a = 2;/);
+
+  const replaced = project(t, { change: false });
+  mkdirSync(join(replaced.root, 'src/config'));
+  writeFileSync(join(replaced.root, 'src/config/settings.js'), 'x\n');
+  git(replaced.root, 'add', '.'); git(replaced.root, 'commit', '-qm', 'dir');
+  rmSync(join(replaced.root, 'src/config'), { recursive: true });
+  writeFileSync(join(replaced.root, 'src/config'), 'now a file\n');
+  for (const args of [[], ['--path', 'src/config/settings.js']]) {
+    const out = run('cross-review', replaced.root, '--reviewer', 'claude', ...args, '--command', reviewer);
+    assert.equal(out.status, 0, out.stderr);
+    assert.ok(record(replaced.root).absent.includes('src/config/settings.js'));
+  }
+  assert.equal(run('check-evidence', join(replaced.root, 'out/reviews/latest/review.json'), replaced.root).status, 0);
+});
+
+test('targets: a failing git diff stops the run before the reviewer is called', t => {
+  const { root, tools } = project(t);
+  // Name-only diffs compare object ids; the patch needs the base blob, so removing it makes only the patch fail.
+  const blob = spawnSync('git', ['-C', root, 'rev-parse', 'HEAD:src/a.js'], { encoding: 'utf8' }).stdout.trim();
+  rmSync(join(root, '.git/objects', blob.slice(0, 2), blob.slice(2)), { force: true });
+  const marker = join(tools, 'called');
+  const result = run('cross-review', root, '--reviewer', 'claude', '--command', fakeReviewer(tools, 'claude', `fs.writeFileSync(${JSON.stringify(marker)}, 'x'); emit('Verdict: approve');`));
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /git diff failed/);
+  assert.equal(existsSync(marker), false);
+});
+
+test('failures: the error line is reported even when the CLI prints a summary after it', t => {
+  const { root, tools } = project(t);
+  const codex = fakeReviewer(tools, 'codex', `process.stderr.write('ERROR: usage limit reached\\ntokens used\\n48,695\\n'); process.exit(1);`);
+  const result = run('cross-review', root, '--reviewer', 'codex', '--command', codex);
+  assert.equal(result.status, 1);
+  assert.equal(record(root).error, 'Reviewer exited with 1: ERROR: usage limit reached');
 });

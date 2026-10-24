@@ -1,7 +1,7 @@
-import { readFileSync, existsSync, rmSync, realpathSync } from 'node:fs';
-import { resolve, join, relative } from 'node:path';
+import { readFileSync, existsSync, rmSync, realpathSync, lstatSync } from 'node:fs';
+import { resolve, join, relative, dirname, sep } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
-import { digest, escapes, inside, realTarget, snapshot, prepareOutput, writeAtomic, temporary } from './evidence.js';
+import { digest, escapes, inside, realTarget, reviewState, prepareOutput, writeAtomic, temporary } from './evidence.js';
 
 export type Reviewer = 'codex' | 'claude';
 export type CrossReviewOptions = {
@@ -60,19 +60,48 @@ export function reviewerArgv(reviewer: Reviewer, executable: string, root: strin
     ...(output ? ['--add-dir', output] : []), ...(model ? ['--model', model] : [])];
 }
 
+// Listed paths are literal file names, never globs or magic pathspecs such as `:!src`.
+// Read-only Git: no optional index refresh (dry runs write nothing) and no fsmonitor hook from the repository config.
+const runGit = (root: string, args: string[]) =>
+  spawnSync('git', ['-C', root, '-c', 'core.fsmonitor=false', ...args], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, env: { ...process.env, GIT_LITERAL_PATHSPECS: '1', GIT_OPTIONAL_LOCKS: '0' } });
 function git(root: string, args: string[]) {
-  const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const result = runGit(root, args);
   return result.status === 0 ? result.stdout : null;
+}
+
+// The target listing and the diff must be complete, so a failure stops the run before the reviewer is called.
+function gitRequired(root: string, args: string[]) {
+  const result = runGit(root, args);
+  if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${(result.error?.message ?? result.stderr).trim().split('\n').at(-1)}`);
+  return result.stdout;
+}
+
+// Writing the bundle would lose uncommitted edits to tracked files in the output, whichever repository holds it and
+// whatever --path selects, so check from the output's deepest existing directory. Status lists staged and unstaged
+// changes, including ones that cancel out against HEAD, and works on an unborn branch.
+function guardOutput(output: string) {
+  let existing = realTarget(output);
+  while (!existsSync(existing)) existing = dirname(existing);
+  if (!lstatSync(existing).isDirectory()) existing = dirname(existing);
+  if (git(existing, ['rev-parse', '--is-inside-work-tree'])?.trim() !== 'true') return;
+  const scope = relative(existing, realTarget(output)) || '.';
+  if (gitRequired(existing, ['status', '--porcelain', '-z', '--untracked-files=no', '--', scope])) {
+    throw new Error('Evidence output contains uncommitted changes to tracked files');
+  }
 }
 
 // Resolve what to review: listed paths, or the Git diff against base plus untracked files outside the review output.
 function reviewTarget(root: string, options: CrossReviewOptions, output: string) {
   const isGit = git(root, ['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
   if (!isGit && !options.paths.length) throw new Error(`Not a Git repository: ${root}. Pass --path for each file to review.`);
+  // In Git a listed path may be a deleted file; it still has to stay inside the repository.
   const paths = options.paths.map(path => {
     try { return relative(root, inside(root, path)); } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw new Error(`Review path not found: ${path}`);
-      throw error;
+      if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+      if (!isGit) throw new Error(`Review path not found: ${path}`);
+      const rel = relative(root, resolve(root, path));
+      if (!rel || escapes(rel)) throw new Error(`Unsafe path: ${path}`);
+      return rel;
     }
   });
   if (!isGit) return { description: `files ${paths.join(', ')}`, base: null, baseCommit: null, head: null, files: paths, diff: '' };
@@ -80,12 +109,21 @@ function reviewTarget(root: string, options: CrossReviewOptions, output: string)
   const baseCommit = git(root, ['rev-parse', '--verify', '--quiet', `${base}^{commit}`])?.trim();
   if (!baseCommit) throw new Error(`Unknown --base revision: ${base}`);
   const scope = paths.length ? ['--', ...paths] : [];
-  const tracked = git(root, ['diff', '--name-only', baseCommit, ...scope]) ?? '';
-  const untracked = git(root, ['ls-files', '--others', '--exclude-standard', ...scope]) ?? '';
-  const untrackedFiles = untracked.split('\n').filter(file => file && escapes(relative(output, resolve(root, file))));
-  const files = [...new Set([...tracked.split('\n').filter(Boolean), ...untrackedFiles])].sort();
+  // NUL-delimited names are unquoted, so non-ASCII names and names with newlines map to real paths. `--relative` keeps
+  // names relative to a root below the Git top level (as `ls-files` already is), and `--no-renames` lists a renamed
+  // file's old path too, so it is tracked as absent.
+  const tracked = gitRequired(root, ['diff', '-z', '--name-only', '--no-renames', '--relative', baseCommit, ...scope]);
+  const untracked = gitRequired(root, ['ls-files', '-z', '--others', '--exclude-standard', ...scope]);
+  // Untracked files inside the output are earlier bundles; a tracked change there would be overwritten, so refuse it.
+  const realOutput = realTarget(output);
+  const insideOutput = (file: string) => !escapes(relative(realOutput, realTarget(resolve(root, file))));
+  const untrackedFiles = untracked.split('\0').filter(file => file && !insideOutput(file));
+  const trackedFiles = tracked.split('\0').filter(Boolean);
+  if (trackedFiles.some(insideOutput)) throw new Error('Evidence output must be outside input scope');
+  const files = [...new Set([...trackedFiles, ...untrackedFiles])].sort();
   if (!files.length) throw new Error(`Nothing to review: no changes against ${base}${paths.length ? ' in the listed paths' : ''}`);
-  let diff = git(root, ['diff', '--no-color', '--no-ext-diff', baseCommit, ...scope]) ?? '';
+  // Raw content only: a textconv driver could fail or hide the real change.
+  let diff = gitRequired(root, ['diff', '--no-color', '--no-ext-diff', '--no-textconv', '--relative', baseCommit, ...scope]);
   for (const file of untrackedFiles) diff += `\n--- untracked file: ${file} (read it in full)\n`;
   const scopeText = paths.length ? ` limited to ${paths.join(', ')}` : '';
   return { description: `working tree against ${base} (${baseCommit}) including untracked files${scopeText}`, base, baseCommit, head: git(root, ['rev-parse', 'HEAD'])?.trim() ?? null, files, diff };
@@ -138,14 +176,25 @@ ${diff}${diff.endsWith('\n') ? '' : '\n'}${marker}
 function reviewInputs(root: string, files: string[]) {
   const config = join(root, 'harness/verify.json');
   const configured: string[] = existsSync(config) ? JSON.parse(readFileSync(config, 'utf8')).inputs ?? [] : [];
-  return [...new Set([...configured, ...files.filter(file => existsSync(join(root, file)))])].sort();
+  // lstat, not existsSync: a dangling symlink is present (and rejected as an input), not deleted.
+  const present = files.filter(file => { try { lstatSync(join(root, file)); return true; } catch { return false; } });
+  const absent = files.filter(file => !present.includes(file));
+  // A configured input the change deletes (a file, or a directory whose files are all deleted) is tracked through
+  // `absent`; other missing configured inputs still fail.
+  const deleted = (input: string) => {
+    const name = relative(root, resolve(root, input)).split(sep).join('/');
+    return !existsSync(join(root, input)) && absent.some(file => file === name || file.startsWith(`${name}/`));
+  };
+  const kept = configured.filter(input => !deleted(input));
+  return { inputs: [...new Set([...kept, ...present])].sort(), absent };
 }
 
-// The last `Verdict:` line decides; a copied template line listing several options is not a verdict.
+// The last `Verdict:` line decides and must name exactly one verdict, ignoring Markdown emphasis and a final period;
+// a copied template listing several options or a conditional approval is not a verdict.
 export function lastVerdict(review: string) {
-  const line = [...review.matchAll(/^[ \t>*_#-]*verdict\b[ \t*_:]*(.*)$/gim)].at(-1)?.[1].replace(/^[`*_ ]+/, '').toLowerCase();
-  if (!line || line.includes('|')) return null;
-  return verdicts.find(verdict => line.startsWith(verdict)) ?? null;
+  const line = [...review.matchAll(/^[ \t>*_#-]*verdict\b[ \t*_:]*(.*)$/gim)].at(-1)?.[1];
+  const verdict = line?.replace(/[`*_]/g, '').trim().replace(/\.$/, '').trim().toLowerCase();
+  return verdicts.find(candidate => candidate === verdict) ?? null;
 }
 
 export function countFindings(review: string) {
@@ -187,6 +236,7 @@ function runReviewer(command: string[], prompt: string, cwd: string, timeoutMs: 
 export async function crossReview(root: string, options: CrossReviewOptions) {
   const outputDir = resolve(options.output ?? join(root, 'out/reviews/latest'));
   const target = reviewTarget(root, options, outputDir);
+  guardOutput(outputDir);
   const executable = options.command ?? options.reviewer;
   const diffFile = join(outputDir, 'diff.patch');
   const addDir = escapes(relative(realpathSync.native(root), realTarget(outputDir))) ? outputDir : null;
@@ -194,8 +244,8 @@ export async function crossReview(root: string, options: CrossReviewOptions) {
     const prompt = buildPrompt(root, options, target, diffFile);
     return { dryRun: true, reviewer: options.reviewer, command: reviewerArgv(options.reviewer, executable, root, addDir, options.model, '<last-message-file>'), target: { ...target, diff: undefined }, prompt };
   }
-  const inputs = reviewInputs(root, target.files);
-  const before = snapshot(root, inputs);
+  const { inputs, absent } = reviewInputs(root, target.files);
+  const before = reviewState(root, inputs, absent);
   const output = prepareOutput(root, inputs, outputDir, bundleFiles);
   const prompt = buildPrompt(root, options, target, join(output, 'diff.patch'));
   writeAtomic(output, 'prompt.md', prompt);
@@ -213,9 +263,11 @@ export async function crossReview(root: string, options: CrossReviewOptions) {
   writeAtomic(output, 'stderr.txt', result.stderr);
   let after = {};
   let snapshotError: string | null = null;
-  try { after = snapshot(root, inputs); } catch (error) { snapshotError = String(error); }
+  try { after = reviewState(root, inputs, absent); } catch (error) { snapshotError = String(error); }
   const unchanged = JSON.stringify(before) === JSON.stringify(after);
-  const stderrTail = result.stderr.toString('utf8').trim().split('\n').at(-1)?.slice(0, 500);
+  // Prefer the last error line: CLIs such as codex print a usage summary after the error.
+  const stderrLines = result.stderr.toString('utf8').trim().split('\n');
+  const stderrTail = ([...stderrLines].reverse().find(line => /error/i.test(line)) ?? stderrLines.at(-1))?.slice(0, 500);
   const error = result.error ? (result.error as NodeJS.ErrnoException).code === 'ENOENT'
     ? `${executable} not found; install the ${reviewers[options.reviewer]} CLI or pass --command` : result.error.message
     : result.status !== 0 ? `Reviewer exited with ${result.status ?? result.signal}${stderrTail ? `: ${stderrTail}` : ''}`
@@ -223,7 +275,7 @@ export async function crossReview(root: string, options: CrossReviewOptions) {
   const record = {
     schemaVersion: 1, kind: 'cross-review', reviewer: options.reviewer, model: options.model ?? null, root, command,
     target: { description: target.description, base: target.base, head: target.head, files: target.files, diffSha256: digest(target.diff), diffTruncated: target.diff.length > diffLimit },
-    spec: options.spec ?? null, inputs, before, after, unchanged, startedAt, finishedAt: new Date().toISOString(),
+    spec: options.spec ?? null, inputs, absent, before, after, unchanged, startedAt, finishedAt: new Date().toISOString(),
     exitCode: result.status, signal: result.signal, error, verdict: lastVerdict(review), findings: countFindings(review),
     passed: result.status === 0 && !error && unchanged,
     logs: bundleFiles.filter(file => file !== 'review.json').map(file => ({ file, sha256: digest(readFileSync(join(output, file))) })),
