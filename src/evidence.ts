@@ -4,10 +4,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 type Config = { command: string[]; inputs: string[]; timeoutMs?: number };
-const digest = (data: Buffer | string) => createHash('sha256').update(data).digest('hex');
+export const digest = (data: Buffer | string) => createHash('sha256').update(data).digest('hex');
 // A relative path leaves its base only through a whole `..` segment; names such as `..ev` stay inside.
-const escapes = (rel: string) => rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../') || isAbsolute(rel);
-function inside(root: string, name: string) {
+export const escapes = (rel: string) => rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../') || isAbsolute(rel);
+export function inside(root: string, name: string) {
   const target = resolve(root, name);
   const rel = relative(root, target);
   if (!rel || escapes(rel)) throw new Error(`Unsafe path: ${name}`);
@@ -34,15 +34,15 @@ const evidenceFiles = ['stdout.txt', 'stderr.txt', 'checks.json'];
 const overlaps = (a: string, b: string) => [relative(a, b), relative(b, a)].some(rel => !escapes(rel));
 // Resolve aliases (symlinks and letter case on case-insensitive disks) in the deepest existing ancestor
 // so overlap is known before any directory is created.
-function realTarget(path: string): string {
+export function realTarget(path: string): string {
   try { return realpathSync.native(path); } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || dirname(path) === path) throw error;
     return join(realTarget(dirname(path)), basename(path));
   }
 }
 // Evidence files are written to fresh temporary files and renamed into place, so an existing link is replaced, never followed.
-function assertReplaceable(output: string) {
-  for (const name of evidenceFiles) {
+function assertReplaceable(output: string, names: string[]) {
+  for (const name of names) {
     let stat;
     try { stat = lstatSync(join(output, name)); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
     if (stat.isSymbolicLink()) throw new Error(`Symlink not allowed in evidence output: ${name}`);
@@ -50,7 +50,25 @@ function assertReplaceable(output: string) {
     if (stat.nlink > 1) throw new Error(`Hardlinked file not allowed in evidence output: ${name}`);
   }
 }
-const temporary = (output: string, name: string) => join(output, `.${name}.${randomUUID()}.tmp`);
+export const temporary = (output: string, name: string) => join(output, `.${name}.${randomUUID()}.tmp`);
+// Create the output directory only outside every input, after resolving aliases, and refuse linked bundle files.
+export function prepareOutput(root: string, inputs: string[], outputInput: string, names: string[]) {
+  const output = resolve(outputInput);
+  const realInputs = inputs.map(input => realpathSync.native(resolve(root, input)));
+  if (realInputs.some(input => overlaps(input, realTarget(output)))) throw new Error('Evidence output must be outside input scope');
+  mkdirSync(output, { recursive: true });
+  const realOutput = realpathSync.native(output);
+  if (realInputs.some(input => overlaps(input, realOutput))) throw new Error('Evidence output must be outside input scope');
+  assertReplaceable(realOutput, names);
+  return realOutput;
+}
+export function writeAtomic(output: string, name: string, data: string | Buffer) {
+  const file = temporary(output, name);
+  try {
+    writeFileSync(file, data, { flag: 'wx' });
+    renameSync(file, join(output, name));
+  } finally { rmSync(file, { force: true }); }
+}
 export function collectEvidence(rootInput: string, configInput: string, outputInput: string) {
   const root = resolve(rootInput);
   const config: Config = JSON.parse(readFileSync(configInput, 'utf8'));
@@ -58,13 +76,7 @@ export function collectEvidence(rootInput: string, configInput: string, outputIn
   const timeout = config.timeoutMs ?? 120000;
   if (!Number.isInteger(timeout) || timeout < 1 || timeout > 3600000) throw new Error('timeoutMs must be 1..3600000');
   const before = snapshot(root, config.inputs);
-  const output = resolve(outputInput);
-  const realInputs = config.inputs.map(input => realpathSync.native(resolve(root, input)));
-  if (realInputs.some(input => overlaps(input, realTarget(output)))) throw new Error('Evidence output must be outside input scope');
-  mkdirSync(output, { recursive: true });
-  const realOutput = realpathSync.native(output);
-  if (realInputs.some(input => overlaps(input, realOutput))) throw new Error('Evidence output must be outside input scope');
-  assertReplaceable(realOutput);
+  const realOutput = prepareOutput(root, config.inputs, outputInput, evidenceFiles);
   const logs = { 'stdout.txt': temporary(realOutput, 'stdout.txt'), 'stderr.txt': temporary(realOutput, 'stderr.txt') };
   const startedAt = new Date().toISOString();
   let result;
@@ -90,28 +102,34 @@ export function collectEvidence(rootInput: string, configInput: string, outputIn
     logs: ['stdout.txt', 'stderr.txt'].map(file => ({ file, sha256: digest(readFileSync(join(realOutput, file))) })),
     notVerified: ['Meaningfulness of test assertions', 'Factual accuracy', 'Independent review', 'Production behavior'],
   };
-  const checks = temporary(realOutput, 'checks.json');
-  try {
-    writeFileSync(checks, JSON.stringify(evidence, null, 2) + '\n', { flag: 'wx' });
-    renameSync(checks, join(realOutput, 'checks.json'));
-  } finally { rmSync(checks, { force: true }); }
+  writeAtomic(realOutput, 'checks.json', JSON.stringify(evidence, null, 2) + '\n');
   return evidence;
 }
+// Files each bundle kind hashes into its record, beside the record itself.
+const bundleLogs: Record<string, string[]> = {
+  'command-execution': ['stdout.txt', 'stderr.txt'],
+  'cross-review': ['prompt.md', 'diff.patch', 'review.md', 'stdout.txt', 'stderr.txt'],
+};
 export function checkEvidence(filename: string, rootInput: string, maxAgeMs = 7 * 86400000) {
   const issues: string[] = [];
   try {
     const data = JSON.parse(readFileSync(filename, 'utf8'));
-    if (data.schemaVersion !== 1 || data.kind !== 'command-execution') throw new Error('Unsupported evidence schema');
+    const logFiles = bundleLogs[data.kind];
+    if (data.schemaVersion !== 1 || !logFiles) throw new Error('Unsupported evidence schema');
     if (!Array.isArray(data.command) || !data.command.length) issues.push('missing-command');
     if (data.exitCode !== 0 || data.signal || data.error || data.passed !== true) issues.push('execution-failed');
     if (data.unchanged !== true || JSON.stringify(data.before) !== JSON.stringify(data.after)) issues.push('source-changed-during-run');
     const finish = Date.parse(data.finishedAt), start = Date.parse(data.startedAt);
     if (!Number.isFinite(start) || !Number.isFinite(finish) || finish < start || finish > Date.now() + 60000 || Date.now() - finish > maxAgeMs) issues.push('stale-or-invalid-time');
     if (JSON.stringify(snapshot(resolve(rootInput), data.inputs)) !== JSON.stringify(data.after)) issues.push('source-hash-mismatch');
-    if (!Array.isArray(data.logs) || data.logs.length !== 2 || new Set(data.logs.map((x: {file:string}) => x.file)).size !== 2) throw new Error('Missing logs');
+    if (!Array.isArray(data.logs) || data.logs.length !== logFiles.length || new Set(data.logs.map((x: {file:string}) => x.file)).size !== logFiles.length) throw new Error('Missing logs');
     for (const log of data.logs) {
-      if (!['stdout.txt', 'stderr.txt'].includes(log.file)) throw new Error('Invalid log path');
+      if (!logFiles.includes(log.file)) throw new Error('Invalid log path');
       if (digest(readFileSync(inside(dirname(resolve(filename)), log.file))) !== log.sha256) issues.push('log-hash-mismatch');
+    }
+    if (data.kind === 'cross-review') {
+      if (!['approve', 'approve with comments', 'request changes'].includes(data.verdict)) issues.push('review-verdict-missing');
+      else if (data.verdict === 'request changes') issues.push('review-requested-changes');
     }
   } catch (error) { issues.push(String(error)); }
   return { valid: issues.length === 0, issues };

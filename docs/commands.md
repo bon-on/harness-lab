@@ -15,6 +15,7 @@ Install the [built release](installation-updates.md) first. Examples below use `
 | `plan <spec.md>` | Summarize requirements and linked decisions | `harness-lab plan harness/specs/my-feature.md --format text` |
 | `verify [repo] [config.json]` | Run a command and collect execution evidence | `harness-lab verify` |
 | `check-evidence <checks.json> <repo>` | Validate stored evidence against current source | `harness-lab check-evidence out/evidence/latest/checks.json .` |
+| `cross-review [repo] --reviewer codex\|claude` | Run the other model's CLI as a read-only reviewer and record the result | `harness-lab cross-review --reviewer codex` |
 | `init repo-kit --output <repo>` | Legacy create-missing-files syntax | `harness-lab init repo-kit --output /path/to/project` |
 | `init engineering --output <file>` | Generate a legacy evaluation spec | `harness-lab init engineering --output /tmp/harness-eval.json` |
 | `run <eval.json>` | Evaluate supplied mock outputs | `harness-lab run examples/coding-assistant.json --format json` |
@@ -40,9 +41,22 @@ harness-lab verify /path/to/project /path/to/project/harness/verify.json \
 
 The output directory contains `checks.json`, `stdout.txt`, and `stderr.txt`. Reusing a directory replaces the previous bundle. Use different directories if you need history. The checker has a seven-day evidence age limit.
 
+## Cross-review
+
+`cross-review` calls a model; nothing else in harness-lab does. Options:
+
+- `--reviewer codex|claude` (required): the CLI that reviews. Pick the model that did not write the change.
+- `--base <ref>`: diff base, default `HEAD`; untracked files are included. `--path <file>` (repeatable) limits the target, and is required without Git.
+- `--spec <file>`: governing spec named in the prompt.
+- `--model <name>`, `--command <executable>`: model and executable passed to the CLI; use `--command` when the CLI is not on `PATH`.
+- `--timeout-ms <n>`: default 1,200,000. `--output <directory>`: default `out/reviews/latest`.
+- `--dry-run`: print argv, target and prompt as JSON; writes nothing.
+
+The bundle holds `prompt.md`, `diff.patch`, `review.md`, `stdout.txt`, `stderr.txt` and `review.json`. Claude gets only Read, Grep and Glob and reads the diff from `diff.patch`; Codex runs in its read-only sandbox. A timeout kills the reviewer's process group. Inputs are the `harness/verify.json` inputs plus the existing target files; output must lie outside them. `check-evidence out/reviews/latest/review.json .` validates the bundle and reports `review-verdict-missing` or `review-requested-changes`. The diff in the prompt is truncated at 200,000 characters.
+
 ## Exit codes and automation
 
-`verify` and `check-evidence` return 1 on failure, 0 on success. `doctor` returns 1 for missing setup, a mutation lock, or blocking audit findings. A successful update may preserve files requiring manual review; inspect its entries even when exit status is 0. Audit returns 1 when policy blocks its findings; `advisory` does not bypass malformed input errors. Read the findings even when exit status is 0. The plan command summarizes blockers; do not use it as a substitute for audit or execution checks.
+`verify`, `check-evidence` and `cross-review` return 1 on failure, 0 on success; `cross-review` also returns 1 when the verdict is missing or `request changes`. `doctor` returns 1 for missing setup, a mutation lock, or blocking audit findings. A successful update may preserve files requiring manual review; inspect its entries even when exit status is 0. Audit returns 1 when policy blocks its findings; `advisory` does not bypass malformed input errors. Read the findings even when exit status is 0. The plan command summarizes blockers; do not use it as a substitute for audit or execution checks.
 
 Run verification before audit when a contract references generated `checks.json`. CI must regenerate evidence after checkout instead of committing a machine-specific bundle. This repo's workflow runs on pushes, pull requests, manual dispatch, and weekly; maintenance warnings are surfaced in the job summary.
 

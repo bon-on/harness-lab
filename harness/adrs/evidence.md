@@ -4,6 +4,7 @@ title: Separate static audit and execution evidence
 status: accepted
 related_specs:
   - verification
+  - cross-review
 ---
 # Evidence
 ## Context

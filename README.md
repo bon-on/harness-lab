@@ -20,6 +20,7 @@ harness-lab은 저장소에 기능 스펙, 아키텍처 결정 기록(ADR), 골�
 | 무엇을 만들지가 대화 속에만 있습니다. | 기능 스펙의 Scope로 작업할 스펙을 고르고, 완료 조건마다 검증 방법을 연결합니다. |
 | "완료했습니다"가 테스트를 실제로 돌렸는지와 무관합니다. | `verify`가 실제 명령의 종료 코드, 소스 해시, 로그 해시를 남기고, `check-evidence`는 오래되거나 실행 후 소스가 바뀐 증거를 거부합니다. |
 | 코드를 쓴 맥락에서 그대로 자기 리뷰를 합니다. | 읽기 전용 `code-reviewer` 에이전트가 스펙·ADR 기준으로 독립 리뷰합니다. Critical·High 지적은 고친 뒤 다시 리뷰받습니다. |
+| 같은 모델이 쓰고 같은 모델이 검토합니다. | `cross-review`가 다른 모델(Claude ↔ Codex)의 CLI로 리뷰를 돌리고, 어떤 소스를 누가 리뷰했는지 기록으로 남깁니다. |
 | 설계 결정의 이유가 대화 기록과 함께 사라집니다. | ADR에 대안과 결과를 남기고 Git으로 이력을 보존합니다. |
 | 운영 스크립트나 실서비스 호출을 테스트처럼 돌릴 수 있습니다. | `constraints.md`와 `project.md`에 금지 명령과 안전 경계를 적어 두면 구현과 리뷰 양쪽에서 확인합니다. |
 | Claude와 Codex에 지침을 따로 관리합니다. | `CLAUDE.md`와 `AGENTS.md`가 같은 workflow를 공유합니다. |
@@ -148,6 +149,23 @@ code-reviewer 에이전트로 작업 트리 변경을 harness/specs/my-feature.m
 ```
 
 에이전트 파일은 스킬에서 생성됩니다. `update`는 수정하지 않은 생성본은 새 버전으로 바꾸고, 직접 만들었거나 수정한 파일은 보존합니다. `.claude`나 `.claude/agents`가 심볼릭 링크이면 이 파일만 건너뜁니다. Bash 권한이 있으므로 읽기 전용 동작은 도구 제한이 아니라 지침 준수에 달려 있습니다.
+
+### 다른 모델로 교차 리뷰
+
+Claude Code와 Codex CLI가 둘 다 설치되어 있으면, 변경을 쓰지 않은 모델에게 리뷰를 맡길 수 있습니다. 모델마다 놓치는 결함이 달라서, 같은 모델의 독립 리뷰와 함께 쓰면 효과가 큽니다.
+
+```bash
+harness-lab cross-review --reviewer codex --dry-run   # 프롬프트와 실행 명령만 확인, 모델 호출 없음
+harness-lab cross-review --reviewer codex             # Claude가 쓴 변경을 Codex가 리뷰
+harness-lab cross-review --reviewer claude --base main --spec harness/specs/my-feature.md
+harness-lab check-evidence out/reviews/latest/review.json .
+```
+
+- 대상은 `--base`(기본 `HEAD`) 대비 Git diff와 추적되지 않은 새 파일입니다. Git이 없는 프로젝트는 `--path`로 파일을 지정합니다.
+- 프롬프트에는 `harness-review` 절차, 대상, 변경 파일 목록, diff가 들어갑니다.
+- 리뷰어는 읽기 전용으로 실행됩니다. Codex는 `--sandbox read-only`, Claude는 Read·Grep·Glob만 허용(`--permission-mode dontAsk`)하고 diff는 `diff.patch`로 읽게 합니다. git 명령도 `git diff --output`처럼 파일을 쓸 수 있어서 Bash는 주지 않습니다. 실행 뒤 소스 해시가 바뀌었거나 시간 초과(리뷰어가 띄운 프로세스까지 종료)면 실패로 기록합니다.
+- `out/reviews/latest/`에 `prompt.md`, `diff.patch`, `review.md`, 로그, `review.json`(명령, 대상, 소스 해시, 판정, 등급별 지적 수)이 남습니다. 판정이 없거나 `request changes`이면 종료 코드 1입니다. `check-evidence`는 소스가 바뀌었거나 7일이 지났거나 판정이 없거나 `request changes`인 기록을 거부합니다.
+- 실행할 때마다 해당 모델 사용량이 듭니다. 리뷰어는 저장소의 모든 파일(비밀값 포함)을 읽을 수 있고, 사용자 설정(Codex MCP 서버, Claude hooks)도 그대로 적용되니 대화형 세션과 같은 기준으로 판단하세요. 기록은 리뷰가 실행됐다는 증거일 뿐, 지적이 옳다는 보증은 아닙니다.
 
 ## Codex 호환
 

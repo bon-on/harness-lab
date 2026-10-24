@@ -20,6 +20,7 @@ harness-lab is a local TypeScript CLI that adds feature specs, architectural dec
 | What to build lives only in the conversation. | The agent selects a feature spec by its Scope and maps each acceptance criterion to a check. |
 | "Done" says nothing about whether tests actually ran. | `verify` records the real command's exit status, source hashes and log hashes; `check-evidence` rejects stale evidence or evidence whose sources changed afterwards. |
 | The agent reviews its own code in the context that wrote it. | A read-only `code-reviewer` agent reviews against the spec and ADRs. Critical and High findings are fixed and re-reviewed. |
+| The same model writes and reviews. | `cross-review` runs the review with the other model's CLI (Claude ↔ Codex) and records which source it reviewed. |
 | The reasons behind design decisions disappear with the chat. | ADRs record alternatives and consequences, and Git preserves their history. |
 | Operational scripts or live service calls can be run as if they were tests. | Forbidden commands and safety boundaries in `constraints.md` and `project.md` are checked during implementation and review. |
 | Claude and Codex instructions are maintained separately. | `CLAUDE.md` and `AGENTS.md` share the same workflow. |
@@ -148,6 +149,23 @@ Use the code-reviewer agent to review my working-tree changes against harness/sp
 ```
 
 The agent file is generated from the skill. `update` refreshes an unmodified generated copy and preserves unmanaged or locally edited ones. If `.claude` or `.claude/agents` is a symlink, only this file is skipped. Its Bash access means read-only behavior depends on the instructions, not on a tool restriction.
+
+### Cross-review with the other model
+
+With both the Claude Code and Codex CLIs installed, the model that did not write a change can review it. Different models miss different defects, so this complements a same-model independent review.
+
+```bash
+harness-lab cross-review --reviewer codex --dry-run   # show the prompt and argv; no model call
+harness-lab cross-review --reviewer codex             # Codex reviews a change Claude wrote
+harness-lab cross-review --reviewer claude --base main --spec harness/specs/my-feature.md
+harness-lab check-evidence out/reviews/latest/review.json .
+```
+
+- The target is the Git diff against `--base` (default `HEAD`) plus untracked files. Projects without Git list files with `--path`.
+- The prompt contains the `harness-review` procedure, the target, the changed file list and the diff.
+- The reviewer runs read-only: Codex with `--sandbox read-only`, Claude with only Read, Grep and Glob (`--permission-mode dontAsk`), reading the diff from `diff.patch`; it gets no Bash because even git subcommands such as `git diff --output` can write files. The run fails if source hashes change or the review times out, and a timeout also stops processes the reviewer spawned.
+- `out/reviews/latest/` receives `prompt.md`, `diff.patch`, `review.md`, logs and `review.json` (argv, target, source hashes, verdict, finding counts by severity). A missing verdict or `request changes` exits 1. `check-evidence` rejects records whose sources changed, that are older than seven days, or whose verdict is missing or `request changes`.
+- Each run spends that model's quota. The reviewer can read every file in the repository, including secrets, and your user configuration (Codex MCP servers, Claude hooks) still applies, as in an interactive session. The record proves that a review ran, not that its findings are correct.
 
 ## Codex compatibility
 

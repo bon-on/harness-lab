@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { collectEvidence, checkEvidence } from './evidence.js';
+import { crossReview, parseCrossReviewArgs } from './review.js';
 import { installKit, rollbackKit, resolveKitRoot, type KitResult } from './lifecycle.js';
 
 const toolVersion: string = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
@@ -1558,7 +1559,7 @@ Startup sequence:
 
 Development routing:
 - For implementation requests, use the available \`harness-develop\` skill or follow the same core workflow: map requirements to checks, assign independent tasks with exclusive file ownership and explicit dependencies, then integrate and verify as coordinator. State why when using a single-agent fallback.
-- Before claiming implementation complete, obtain an independent read-only review: the \`code-reviewer\` agent in Claude, or a separate agent following the \`harness-review\` skill elsewhere. Fix and re-review Critical and High findings, or justify them in the report. State why when review is skipped for a trivial change.
+- Before claiming implementation complete, obtain an independent read-only review: the \`code-reviewer\` agent in Claude, or a separate agent following the \`harness-review\` skill elsewhere. When the other model's CLI is installed, also run \`harness-lab cross-review --reviewer <codex|claude>\` with the model that did not write the change; it records the review under \`out/reviews/\` and complements, not replaces, the independent review. Fix and re-review Critical and High findings, or justify them in the report. State why when review is skipped for a trivial change.
 - Use the host's available agent tools. Do not assume Git worktrees or a particular orchestration service exists.
 
 Response contract:
@@ -2578,6 +2579,8 @@ Usage:
   harness-lab doctor [repo] [--format text|json|md]
   harness-lab verify [repo] [config.json] [--output <directory>]
   harness verify <repo> <config.json> --output <directory>
+  harness-lab cross-review [repo] --reviewer codex|claude [--base <ref>] [--path <file>]...
+      [--spec <file>] [--model <name>] [--command <executable>] [--timeout-ms <n>] [--output <directory>] [--dry-run]
   harness check-evidence <checks.json> <repo>
   harness run <spec.json> [--format text|json|md]
   harness maturity <spec.json> [--format text|json|md]
@@ -2595,6 +2598,17 @@ function main() {
     const argv = process.argv.slice(2);
     if (argv.includes('--help') || argv.includes('-h')) { printUsage(); return; }
     if (argv.length === 1 && (argv[0] === '--version' || argv[0] === '-v')) { console.log(toolVersion); return; }
+    if (argv[0] === 'cross-review') {
+      const { root, options } = parseCrossReviewArgs(argv.slice(1));
+      crossReview(root, options).then(result => {
+        console.log(JSON.stringify(result, null, 2));
+        if ('passed' in result && (!result.passed || result.verdict !== 'approve' && result.verdict !== 'approve with comments')) process.exitCode = 1;
+      }, error => {
+        console.error(error instanceof Error ? error.message : String(error));
+        process.exitCode = 1;
+      });
+      return;
+    }
     const { command, positionals, options } = parseArgs(argv);
 
     if (command === 'verify') {

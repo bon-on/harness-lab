@@ -4,6 +4,7 @@ title: Skill-sourced independent reviewer with a generated Claude agent
 status: accepted
 related_specs:
   - code-review
+  - cross-review
 ---
 # Code review
 ## Context
