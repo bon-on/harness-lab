@@ -7,7 +7,7 @@ Requirements: Node.js 22 or newer and npm. Examples use a POSIX shell. No model 
 The npm-compatible package is named `@bon-on/harness-lab`, but it is distributed as a versioned GitHub Release asset. It is **not published to the npm registry**; do not use bare `npx @bon-on/harness-lab`.
 
 ```bash
-npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.4.0/bon-on-harness-lab-0.4.0.tgz'
 harness-lab --version
 harness-lab --help
 ```
@@ -17,7 +17,7 @@ This installs built code and assets without cloning or building the tool. Both `
 To pin the tool in an existing npm project instead:
 
 ```bash
-npm install --save-dev 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
+npm install --save-dev 'https://github.com/bon-on/harness-lab/releases/download/v0.4.0/bon-on-harness-lab-0.4.0.tgz'
 npx --no-install harness-lab --version
 npx --no-install harness-lab init --dry-run
 ```

@@ -47,17 +47,17 @@ harness-lab은 저장소에 기능 스펙, 아키텍처 결정 기록(ADR), 골�
 
 요구 사항: Node.js 22 이상, npm. 아래 명령은 POSIX 셸(macOS/Linux) 기준입니다.
 
-빌드된 **v0.3.0** 릴리스를 설치합니다. 소스 체크아웃이나 빌드는 필요 없습니다.
+빌드된 **v0.4.0** 릴리스를 설치합니다. 소스 체크아웃이나 빌드는 필요 없습니다.
 
 ```bash
-npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.4.0/bon-on-harness-lab-0.4.0.tgz'
 harness-lab --version
 harness-lab --help
 ```
 
 패키지는 **npm 레지스트리가 아니라** GitHub Releases로 배포합니다. `npx @bon-on/harness-lab`만으로는 설치되지 않습니다. 프로젝트 로컬 설치나 기여 환경 구성은 [설치와 업데이트(영문)](docs/installation-updates.md)를 참고하세요.
 
-> **v0.2.0에서 올리기.** v0.3.0을 설치한 뒤 프로젝트에서 `update`로 미리 보고 `update --apply`를 실행하세요. 수정하지 않은 `CLAUDE.md`, `AGENTS.md`, `harness/workflow.md`는 새 템플릿(workflow import 포함)으로 바뀌고, `harness/project.md`와 `code-reviewer` 에이전트가 추가됩니다. 직접 고친 파일은 보존됩니다.
+> **이전 버전에서 올리기.** v0.4.0을 설치한 뒤 프로젝트에서 `update`로 미리 보고 `update --apply`를 실행하세요. 수정하지 않은 `CLAUDE.md`, `AGENTS.md`, `harness/workflow.md`는 새 템플릿으로 바뀝니다(v0.4.0 workflow는 다른 모델 CLI가 있으면 `cross-review`도 실행하라고 안내합니다). v0.2.0에서 올리면 `harness/project.md`와 `code-reviewer` 에이전트도 추가됩니다. 직접 고친 파일은 보존됩니다.
 
 ## 프로젝트에 적용하기
 
@@ -164,7 +164,7 @@ harness-lab check-evidence out/reviews/latest/review.json .
 - 대상은 `--base`(기본 `HEAD`) 대비 Git diff와 추적되지 않은 새 파일입니다. Git이 없는 프로젝트는 `--path`로 파일을 지정합니다.
 - 프롬프트에는 `harness-review` 절차, 대상, 변경 파일 목록, diff가 들어갑니다.
 - 리뷰어는 읽기 전용으로 실행됩니다. Codex는 `--sandbox read-only`, Claude는 Read·Grep·Glob만 허용(`--permission-mode dontAsk`)하고 diff는 `diff.patch`로 읽게 합니다. git 명령도 `git diff --output`처럼 파일을 쓸 수 있어서 Bash는 주지 않습니다. 실행 뒤 소스 해시가 바뀌었거나 시간 초과(리뷰어가 띄운 프로세스까지 종료)면 실패로 기록합니다.
-- `out/reviews/latest/`에 `prompt.md`, `diff.patch`, `review.md`, 로그, `review.json`(명령, 대상, 소스 해시, 판정, 등급별 지적 수)이 남습니다. 판정이 없거나 `request changes`이면 종료 코드 1입니다. `check-evidence`는 소스가 바뀌었거나 7일이 지났거나 판정이 없거나 `request changes`인 기록을 거부합니다.
+- `out/reviews/latest/`에 `prompt.md`, `diff.patch`, `review.md`, 로그, `review.json`(명령, 대상, 소스 해시, 판정, 등급별 지적 수)이 남습니다. 판정이 없거나 `request changes`이면 종료 코드 1입니다. `check-evidence`는 기록된 입력(리뷰 대상 파일과 `harness/verify.json` 입력)이 바뀌었거나 7일이 지났거나 판정이 없거나 `request changes`인 기록을 거부합니다. 리뷰 뒤에 범위 밖 파일이 바뀌거나 새 파일이 생긴 것은 잡지 못하므로, 최종 변경을 다시 리뷰하려면 `cross-review`를 다시 실행하세요.
 - 실행할 때마다 해당 모델 사용량이 듭니다. 리뷰어는 저장소의 모든 파일(비밀값 포함)을 읽을 수 있고, 사용자 설정(Codex MCP 서버, Claude hooks)도 그대로 적용되니 대화형 세션과 같은 기준으로 판단하세요. 기록은 리뷰가 실행됐다는 증거일 뿐, 지적이 옳다는 보증은 아닙니다.
 
 ## Codex 호환

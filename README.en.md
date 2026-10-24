@@ -47,17 +47,17 @@ In every case, `harness-lab doctor` then tells you what to do next.
 
 Requirements: Node.js 22 or newer and npm. Commands below use a POSIX shell (macOS/Linux).
 
-Install the built **v0.3.0** release; no source checkout or build is needed:
+Install the built **v0.4.0** release; no source checkout or build is needed:
 
 ```bash
-npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.4.0/bon-on-harness-lab-0.4.0.tgz'
 harness-lab --version
 harness-lab --help
 ```
 
 The package is distributed through GitHub Releases, **not the npm registry**. Bare `npx @bon-on/harness-lab` is not an installation route. For a project-local installation or contributor setup, see [installation and updates](docs/installation-updates.md).
 
-> **Upgrading from v0.2.0.** Install v0.3.0, then run `update` to preview and `update --apply` in the project. Unmodified `CLAUDE.md`, `AGENTS.md` and `harness/workflow.md` are replaced with the new templates (including the workflow import), and `harness/project.md` and the `code-reviewer` agent are added. Files you edited are preserved.
+> **Upgrading from an earlier release.** Install v0.4.0, then run `update` to preview and `update --apply` in the project. Unmodified `CLAUDE.md`, `AGENTS.md` and `harness/workflow.md` are replaced with the new templates (the v0.4.0 workflow also asks for `cross-review` when the other model's CLI is installed). From v0.2.0, `harness/project.md` and the `code-reviewer` agent are added too. Files you edited are preserved.
 
 ## Apply it to your project
 
@@ -164,7 +164,7 @@ harness-lab check-evidence out/reviews/latest/review.json .
 - The target is the Git diff against `--base` (default `HEAD`) plus untracked files. Projects without Git list files with `--path`.
 - The prompt contains the `harness-review` procedure, the target, the changed file list and the diff.
 - The reviewer runs read-only: Codex with `--sandbox read-only`, Claude with only Read, Grep and Glob (`--permission-mode dontAsk`), reading the diff from `diff.patch`; it gets no Bash because even git subcommands such as `git diff --output` can write files. The run fails if source hashes change or the review times out, and a timeout also stops processes the reviewer spawned.
-- `out/reviews/latest/` receives `prompt.md`, `diff.patch`, `review.md`, logs and `review.json` (argv, target, source hashes, verdict, finding counts by severity). A missing verdict or `request changes` exits 1. `check-evidence` rejects records whose sources changed, that are older than seven days, or whose verdict is missing or `request changes`.
+- `out/reviews/latest/` receives `prompt.md`, `diff.patch`, `review.md`, logs and `review.json` (argv, target, source hashes, verdict, finding counts by severity). A missing verdict or `request changes` exits 1. `check-evidence` rejects records whose recorded inputs (the reviewed files and the `harness/verify.json` inputs) changed, that are older than seven days, or whose verdict is missing or `request changes`. It does not notice later changes to other files or newly added files; rerun `cross-review` to cover the final change.
 - Each run spends that model's quota. The reviewer can read every file in the repository, including secrets, and your user configuration (Codex MCP servers, Claude hooks) still applies, as in an interactive session. The record proves that a review ran, not that its findings are correct.
 
 ## Codex compatibility

@@ -4,10 +4,10 @@ harness-lab은 Claude·Codex가 프로젝트의 스펙, ADR(아키텍처 결정 
 
 ## 1. 설치
 
-Node.js 22 이상과 npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다. 빌드된 v0.3.0 릴리스를 설치하므로 저장소 복제나 빌드가 필요하지 않습니다. v0.2.0으로 이미 초기화한 프로젝트는 v0.3.0을 설치한 뒤 `init` 대신 `update`로 미리 보고 `update --apply`를 실행합니다. 하네스를 직접 작성했거나 harness-apply로 적용한 프로젝트는 고유 지침을 `harness/project.md`로 옮긴 뒤 `adopt`, `adopt --apply`로 편입합니다.
+Node.js 22 이상과 npm이 필요합니다. 아래 명령은 macOS/Linux 셸 기준입니다. 빌드된 v0.4.0 릴리스를 설치하므로 저장소 복제나 빌드가 필요하지 않습니다. 이전 버전으로 이미 초기화한 프로젝트는 v0.4.0을 설치한 뒤 `init` 대신 `update`로 미리 보고 `update --apply`를 실행합니다. 하네스를 직접 작성했거나 harness-apply로 적용한 프로젝트는 고유 지침을 `harness/project.md`로 옮긴 뒤 `adopt`, `adopt --apply`로 편입합니다.
 
 ```bash
-npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
+npm install --global 'https://github.com/bon-on/harness-lab/releases/download/v0.4.0/bon-on-harness-lab-0.4.0.tgz'
 harness-lab --version
 harness-lab --help
 ```
@@ -17,7 +17,7 @@ harness-lab --help
 전역 설치 대신 기존 npm 프로젝트에 버전을 고정할 수도 있습니다.
 
 ```bash
-npm install --save-dev 'https://github.com/bon-on/harness-lab/releases/download/v0.3.0/bon-on-harness-lab-0.3.0.tgz'
+npm install --save-dev 'https://github.com/bon-on/harness-lab/releases/download/v0.4.0/bon-on-harness-lab-0.4.0.tgz'
 npx --no-install harness-lab --version
 ```
 

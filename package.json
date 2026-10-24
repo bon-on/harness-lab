@@ -1,6 +1,6 @@
 {
   "name": "@bon-on/harness-lab",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Project-specific harness workflows, ADRs, rules, and command verification for Claude and Codex",
   "type": "module",
   "main": "dist/index.js",

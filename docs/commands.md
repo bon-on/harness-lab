@@ -52,7 +52,7 @@ The output directory contains `checks.json`, `stdout.txt`, and `stderr.txt`. Reu
 - `--timeout-ms <n>`: default 1,200,000. `--output <directory>`: default `out/reviews/latest`.
 - `--dry-run`: print argv, target and prompt as JSON; writes nothing.
 
-The bundle holds `prompt.md`, `diff.patch`, `review.md`, `stdout.txt`, `stderr.txt` and `review.json`. Claude gets only Read, Grep and Glob and reads the diff from `diff.patch`; Codex runs in its read-only sandbox. A timeout kills the reviewer's process group. Inputs are the `harness/verify.json` inputs plus the existing target files; deleted target files are recorded as `absent` and must stay deleted. Output must lie outside the inputs. The last `Verdict:` line must name exactly one verdict. `check-evidence out/reviews/latest/review.json .` validates the bundle and reports `review-verdict-missing` or `review-requested-changes`. The diff in the prompt is truncated at 200,000 characters.
+The bundle holds `prompt.md`, `diff.patch`, `review.md`, `stdout.txt`, `stderr.txt` and `review.json`. Claude gets only Read, Grep and Glob and reads the diff from `diff.patch`; Codex runs in its read-only sandbox. A timeout kills the reviewer's process group. Inputs are the `harness/verify.json` inputs plus the existing target files; deleted target files are recorded as `absent` and must stay deleted. Output must lie outside the inputs. The last `Verdict:` line must name exactly one verdict. `check-evidence out/reviews/latest/review.json .` validates the bundle against its recorded inputs only (later changes to other files are not detected) and reports `review-verdict-missing` or `review-requested-changes`. The diff in the prompt is truncated at 200,000 characters.
 
 ## Exit codes and automation
 
